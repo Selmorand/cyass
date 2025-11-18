@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(git add:*)",
+      "Bash(tree:*)",
+      "Bash(curl:*)",
+      "Bash(bash)",
+      "Bash(npm:*)",
+      "Bash(powershell:*)",
+      "Bash(cmd /c scriptssetup.bat)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

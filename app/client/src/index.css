@@ -1,0 +1,61 @@
+@import 'bootstrap/dist/css/bootstrap.min.css';
+
+/* Custom CYAss styles */
+:root {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --bs-primary: #0c0e43;
+  --bs-primary-rgb: 12, 14, 67;
+  --bs-secondary: #88cb11;
+  --bs-secondary-rgb: 136, 203, 17;
+}
+
+/* Override Bootstrap primary colors */
+.btn-primary {
+  --bs-btn-bg: #0c0e43;
+  --bs-btn-border-color: #0c0e43;
+  --bs-btn-hover-bg: #090b36;
+  --bs-btn-hover-border-color: #090b36;
+  --bs-btn-active-bg: #070829;
+  --bs-btn-active-border-color: #070829;
+}
+
+.text-primary {
+  color: #0c0e43 !important;
+}
+
+.bg-primary {
+  background-color: #0c0e43 !important;
+}
+
+.border-primary {
+  border-color: #0c0e43 !important;
+}
+
+.btn-secondary {
+  --bs-btn-bg: #88cb11;
+  --bs-btn-border-color: #88cb11;
+  --bs-btn-hover-bg: #7ab60f;
+  --bs-btn-hover-border-color: #7ab60f;
+  --bs-btn-active-bg: #6ca10d;
+  --bs-btn-active-border-color: #6ca10d;
+}
+
+.text-secondary {
+  color: #88cb11 !important;
+}
+
+.bg-secondary {
+  background-color: #88cb11 !important;
+}
+
+/* Debug: ensure body is visible */
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-color: #f9fafb;
+}
+
+#root {
+  min-height: 100vh;
+}

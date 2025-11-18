@@ -1,0 +1,144 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useGeolocation } from '../hooks/useGeolocation'
+import { createProperty } from '../services/properties'
+import { formatGPSCoordinates } from '../utils'
+import PropertyForm from '../components/PropertyForm'
+import type { CreatePropertyInput } from '../types'
+
+export default function AddProperty() {
+  const navigate = useNavigate()
+  const { coordinates, accuracy, loading: gpsLoading, error: gpsError, requestLocation } = useGeolocation()
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (propertyData: CreatePropertyInput) => {
+    try {
+      setSubmitting(true)
+      setError(null)
+
+      if (!coordinates) {
+        throw new Error('GPS coordinates are required. Please capture location first.')
+      }
+
+      const propertyWithGPS: CreatePropertyInput = {
+        ...propertyData,
+        gps_coordinates: {
+          latitude: coordinates.latitude,
+          longitude: coordinates.longitude,
+          accuracy,
+          timestamp: new Date().toISOString()
+        }
+      }
+
+      await createProperty(propertyWithGPS)
+      navigate('/properties')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create property')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="py-3">
+      <div className="container px-3" style={{maxWidth: '1024px'}}>
+        <div className="mb-4">
+          <h1 className="h3 fw-bold text-dark">
+            Add New Property
+          </h1>
+          <p className="mt-1 small text-muted mb-0">
+            Register a property for condition reporting with GPS verification
+          </p>
+        </div>
+
+        {/* GPS Status Section */}
+        <div className="card shadow-sm mb-4">
+          <div className="card-body p-3">
+            <h5 className="card-title fw-medium text-dark mb-3">📍 Location Verification</h5>
+          
+            {!coordinates && (
+              <div className="alert alert-warning d-flex align-items-start mb-3">
+                <span className="text-warning fs-5 me-2">⚠️</span>
+                <div>
+                  <h6 className="alert-heading small">GPS Required</h6>
+                  <p className="mb-0 small">
+                    You must capture GPS coordinates before submitting the property.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-sm-between gap-3">
+              <div className="flex-fill">
+              {coordinates ? (
+                <div className="text-success">
+                  ✅ <strong>Location Captured</strong>
+                  <div className="small text-muted mt-1 font-monospace">
+                    {formatGPSCoordinates({ 
+                      latitude: coordinates.latitude, 
+                      longitude: coordinates.longitude, 
+                      accuracy, 
+                      timestamp: new Date().toISOString() 
+                    })}
+                  </div>
+                </div>
+              ) : gpsError ? (
+                <div className="text-danger">
+                  ❌ <strong>Location Error:</strong> {gpsError}
+                </div>
+              ) : (
+                <div className="text-muted">
+                  📍 GPS coordinates not captured yet
+                </div>
+              )}
+              </div>
+              <button
+              onClick={requestLocation}
+              disabled={gpsLoading}
+                className="btn btn-primary d-flex align-items-center"
+            >
+              {gpsLoading ? (
+                <>
+                  <div className="spinner-border spinner-border-sm text-light me-2" role="status"></div>
+                  Getting Location...
+                </>
+              ) : (
+                <>🎯 Capture GPS</>
+              )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="alert alert-danger d-flex align-items-start mb-4">
+            <span className="text-danger fs-5 me-2">❌</span>
+            <div>
+              <h6 className="alert-heading small">Error</h6>
+              <p className="mb-0 small">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Property Form */}
+        <div className="card shadow-sm">
+          <div className="card-header">
+            <h5 className="card-title fw-medium text-dark mb-1">Property Details</h5>
+            <p className="card-text small text-muted mb-0">
+              Fill in the property information below
+            </p>
+          </div>
+          <div className="card-body p-3">
+            <PropertyForm 
+              onSubmit={handleSubmit}
+              submitting={submitting}
+              hasGPS={!!coordinates}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
