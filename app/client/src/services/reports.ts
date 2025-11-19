@@ -365,3 +365,4 @@ export const getReports = (propertyId?: string) => reportsService.getReports(pro
 export const getReport = (id: string) => reportsService.getReport(id)
 export const getPublicReport = (id: string) => reportsService.getPublicReport(id)
 export const updateReport = (id: string, input: UpdateReportInput) => reportsService.updateReport(id, input)
+export const deleteReport = (id: string) => reportsService.deleteReport(id)

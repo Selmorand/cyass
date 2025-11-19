@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { getReports } from '../services/reports'
+import { getReports, deleteReport } from '../services/reports'
 import { getProperties } from '../services/properties'
 import type { Report, Property } from '../types'
+import { useNotification } from '../contexts/NotificationContext'
 
 export default function AllReports() {
   const [reports, setReports] = useState<Report[]>([])
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reportToDelete, setReportToDelete] = useState<Report | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const { showSuccess, showError } = useNotification()
 
   useEffect(() => {
     loadData()
@@ -29,6 +33,31 @@ export default function AllReports() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDeleteClick = (report: Report) => {
+    setReportToDelete(report)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!reportToDelete) return
+
+    try {
+      setDeleting(true)
+      await deleteReport(reportToDelete.id)
+      showSuccess('Report deleted successfully')
+      setReportToDelete(null)
+      // Reload reports after deletion
+      await loadData()
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to delete report')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleCancelDelete = () => {
+    setReportToDelete(null)
   }
 
   const getPropertyName = (propertyId: string) => {
@@ -153,7 +182,7 @@ export default function AllReports() {
                           View Report
                         </Link>
                       )}
-                      
+
                       <Link
                         to={`/properties/${report.property_id}/reports`}
                         className="btn btn-outline-secondary btn-sm"
@@ -161,11 +190,83 @@ export default function AllReports() {
                       >
                         🏠
                       </Link>
+
+                      <button
+                        onClick={() => handleDeleteClick(report)}
+                        className="btn btn-outline-danger btn-sm"
+                        title="Delete report"
+                      >
+                        🗑️
+                      </button>
                     </div>
                   </div>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {reportToDelete && (
+          <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Delete Report</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={handleCancelDelete}
+                    disabled={deleting}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p>Are you sure you want to delete this report?</p>
+                  <div className="alert alert-warning">
+                    <strong>{reportToDelete.title}</strong>
+                    <br />
+                    <small className="text-muted">
+                      Property: {getPropertyName(reportToDelete.property_id)}
+                    </small>
+                    <br />
+                    <small className="text-muted">
+                      {reportToDelete.rooms?.length || 0} rooms • {' '}
+                      {reportToDelete.rooms?.reduce((total, room) =>
+                        total + (room.items?.reduce((itemTotal, item) =>
+                          itemTotal + (item.photos?.length || 0), 0) || 0), 0) || 0} photos
+                    </small>
+                  </div>
+                  <p className="text-danger mb-0">
+                    <strong>Warning:</strong> This action cannot be undone. All rooms, inspection items, and associated data will be permanently deleted.
+                  </p>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleCancelDelete}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={handleConfirmDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Deleting...
+                      </>
+                    ) : (
+                      'Delete Report'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
