@@ -17,6 +17,13 @@ export const supabase = {
       data: { user: mockUser, session: { access_token: 'mock-token' } },
       error: null
     }),
+    signInWithOAuth: async ({ provider, options }: any) => {
+      console.warn('Mock Supabase: OAuth not available in mock mode. Configure real Supabase credentials.')
+      return {
+        data: { url: null, provider },
+        error: { message: 'OAuth not available in mock mode. Please configure Supabase credentials in .env' }
+      }
+    },
     signOut: async () => ({
       error: null
     }),
