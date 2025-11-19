@@ -1,33 +1,63 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { getProperties } from '../services/properties'
+import { getProperties, deleteProperty } from '../services/properties'
 import { formatAddress } from '../utils'
 import type { Property } from '../types'
+import { useNotification } from '../contexts/NotificationContext'
 
 export default function PropertyList() {
   const { user } = useAuth()
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const { showSuccess, showError } = useNotification()
+
+  const loadProperties = async () => {
+    try {
+      setLoading(true)
+      const data = await getProperties()
+      setProperties(data)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load properties')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const loadProperties = async () => {
-      try {
-        setLoading(true)
-        const data = await getProperties()
-        setProperties(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load properties')
-      } finally {
-        setLoading(false)
-      }
-    }
-
     if (user) {
       loadProperties()
     }
   }, [user])
+
+  const handleDeleteClick = (property: Property) => {
+    setPropertyToDelete(property)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!propertyToDelete) return
+
+    try {
+      setDeleting(true)
+      await deleteProperty(propertyToDelete.id)
+      showSuccess('Property deleted successfully')
+      setPropertyToDelete(null)
+      // Reload properties after deletion
+      await loadProperties()
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to delete property')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleCancelDelete = () => {
+    setPropertyToDelete(null)
+  }
 
   if (loading) {
     return (
@@ -156,11 +186,79 @@ export default function PropertyList() {
                     >
                       📊 Reports
                     </Link>
+                    <button
+                      onClick={() => handleDeleteClick(property)}
+                      className="btn btn-outline-danger d-flex align-items-center py-2"
+                      title="Delete property"
+                    >
+                      🗑️
+                    </button>
                     </div>
                   </div>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {propertyToDelete && (
+          <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Delete Property</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={handleCancelDelete}
+                    disabled={deleting}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p>Are you sure you want to delete this property?</p>
+                  <div className="alert alert-warning">
+                    <strong>{propertyToDelete.name}</strong>
+                    <br />
+                    <small className="text-muted">
+                      {formatAddress(propertyToDelete.address)}
+                    </small>
+                    <br />
+                    <small className="text-muted">
+                      Type: {propertyToDelete.property_type || 'House'}
+                    </small>
+                  </div>
+                  <p className="text-danger mb-0">
+                    <strong>Warning:</strong> This action cannot be undone. All reports, rooms, and inspection data associated with this property will be permanently deleted.
+                  </p>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleCancelDelete}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={handleConfirmDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Deleting...
+                      </>
+                    ) : (
+                      'Delete Property'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
