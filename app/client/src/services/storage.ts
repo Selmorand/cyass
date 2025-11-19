@@ -1,58 +1,68 @@
 import { supabase } from './supabase'
+import { r2StorageService } from './r2-storage'
+
+// Use R2 if configured, otherwise fallback to Supabase
+const useR2 = r2StorageService.isConfigured()
 
 export const storageService = {
   /**
-   * CRITICAL: Upload photo to Supabase Storage
-   * ⚠️ DO NOT MODIFY without explicit user permission
-   * 
+   * Upload photo to Cloudflare R2 (or Supabase fallback)
+   *
    * PROTECTED FEATURES:
-   * - Uses 'property-photos' bucket (NOT 'inspection-photos') 
-   * - Bucket has working RLS policies
+   * - Uses Cloudflare R2 when configured (alpha/production)
+   * - Falls back to Supabase Storage if R2 not configured (local dev)
    * - Organized path: {userId}/{reportId}/{itemId}/{timestamp}.jpg
    * - Enhanced error logging for debugging
-   * 
-   * NEVER CHANGE:
-   * - Bucket name from 'property-photos'
-   * - Storage path structure
-   * - Error logging system
+   *
+   * STORAGE PATH:
+   * - Same structure maintained across both storage systems
+   * - Error logging system preserved
    */
   async uploadPhoto(file: File, reportId: string, itemId: string): Promise<string> {
     try {
-      console.log('Storage: Checking authentication...')
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        console.error('Storage: User not authenticated')
-        throw new Error('User not authenticated')
+      console.log(`Storage: Using ${useR2 ? 'Cloudflare R2' : 'Supabase Storage'}`)
+
+      if (useR2) {
+        // Use Cloudflare R2 (production/alpha)
+        return await r2StorageService.uploadPhoto(file, reportId, itemId)
+      } else {
+        // Fallback to Supabase Storage (local dev)
+        console.log('Storage: Checking authentication...')
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          console.error('Storage: User not authenticated')
+          throw new Error('User not authenticated')
+        }
+        console.log('Storage: User authenticated:', user.id)
+
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${user.id}/${reportId}/${itemId}/${Date.now()}.${fileExt}`
+        console.log('Storage: Uploading to path:', fileName)
+
+        const { data, error } = await supabase.storage
+          .from('property-photos')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          })
+
+        if (error) {
+          console.error('Storage: Upload failed:', {
+            error: error.message,
+            statusCode: error.statusCode,
+            cause: error.cause
+          })
+          throw new Error(`Upload failed: ${error.message}`)
+        }
+
+        console.log('Storage: Upload successful, getting public URL...')
+        const { data: publicUrl } = supabase.storage
+          .from('property-photos')
+          .getPublicUrl(data.path)
+
+        console.log('Storage: Public URL generated:', publicUrl.publicUrl)
+        return publicUrl.publicUrl
       }
-      console.log('Storage: User authenticated:', user.id)
-
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}/${reportId}/${itemId}/${Date.now()}.${fileExt}`
-      console.log('Storage: Uploading to path:', fileName)
-
-      const { data, error } = await supabase.storage
-        .from('property-photos')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        })
-
-      if (error) {
-        console.error('Storage: Upload failed:', {
-          error: error.message,
-          statusCode: error.statusCode,
-          cause: error.cause
-        })
-        throw new Error(`Upload failed: ${error.message}`)
-      }
-
-      console.log('Storage: Upload successful, getting public URL...')
-      const { data: publicUrl } = supabase.storage
-        .from('property-photos')
-        .getPublicUrl(data.path)
-
-      console.log('Storage: Public URL generated:', publicUrl.publicUrl)
-      return publicUrl.publicUrl
     } catch (error) {
       console.error('Storage: uploadPhoto failed:', error)
       throw error
@@ -60,26 +70,39 @@ export const storageService = {
   },
 
   async uploadPDF(file: Blob, reportId: string): Promise<string> {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    try {
+      console.log(`Storage: PDF using ${useR2 ? 'Cloudflare R2' : 'Supabase Storage'}`)
 
-    const fileName = `${user.id}/${reportId}/report-${Date.now()}.pdf`
+      if (useR2) {
+        // Use Cloudflare R2 (production/alpha)
+        return await r2StorageService.uploadPDF(file, reportId)
+      } else {
+        // Fallback to Supabase Storage (local dev)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('User not authenticated')
 
-    const { data, error } = await supabase.storage
-      .from('reports')
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: true,
-        contentType: 'application/pdf'
-      })
+        const fileName = `${user.id}/${reportId}/report-${Date.now()}.pdf`
 
-    if (error) throw error
+        const { data, error } = await supabase.storage
+          .from('reports')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: 'application/pdf'
+          })
 
-    const { data: publicUrl } = supabase.storage
-      .from('reports')
-      .getPublicUrl(data.path)
+        if (error) throw error
 
-    return publicUrl.publicUrl
+        const { data: publicUrl } = supabase.storage
+          .from('reports')
+          .getPublicUrl(data.path)
+
+        return publicUrl.publicUrl
+      }
+    } catch (error) {
+      console.error('Storage: uploadPDF failed:', error)
+      throw error
+    }
   },
 
   extractPathFromUrl(url: string): string | null {
@@ -123,39 +146,42 @@ export const storageService = {
   },
 
   /**
-   * CRITICAL: Generate external URL for PDF links
-   * ⚠️ DO NOT MODIFY without explicit user permission
-   * 
-   * PROTECTED FEATURES:
-   * - Generates clickable URLs for PDF thumbnails
-   * - Supports both public and signed URLs
-   * - 5-year default expiry for long-term access
-   * - Uses 'property-photos' bucket with working RLS
-   * 
-   * @param imageUrl - The Supabase public URL from storage
-   * @param useSignedUrl - Whether to use signed URLs (default: false for public bucket)
+   * Generate external URL for PDF links
+   *
+   * FEATURES:
+   * - For R2: Returns public URL as-is (no signing needed)
+   * - For Supabase: Supports both public and signed URLs
+   * - 5-year default expiry for signed URLs
+   *
+   * @param imageUrl - The storage URL (R2 or Supabase)
+   * @param useSignedUrl - Whether to use signed URLs (default: false)
    * @param expiresInSeconds - Expiry for signed URLs (default: 5 years)
    * @returns External URL for PDF linking
    */
   async getExternalImageUrl(
-    imageUrl: string, 
-    useSignedUrl: boolean = false, 
+    imageUrl: string,
+    useSignedUrl: boolean = false,
     expiresInSeconds: number = 157680000 // 5 years
   ): Promise<string> {
     try {
+      if (useR2) {
+        // R2 URLs are already public and external-accessible
+        return await r2StorageService.getExternalImageUrl(imageUrl)
+      }
+
       if (!useSignedUrl) {
         // Return public URL as-is
         return imageUrl
       }
 
-      // Extract path from public URL
+      // Supabase: Extract path from public URL
       const path = this.extractPathFromUrl(imageUrl)
       if (!path) {
         console.warn('Could not extract path from URL:', imageUrl)
         return imageUrl
       }
 
-      // Generate signed URL
+      // Supabase: Generate signed URL
       const { data, error } = await supabase.storage
         .from('property-photos')
         .createSignedUrl(path, expiresInSeconds)
