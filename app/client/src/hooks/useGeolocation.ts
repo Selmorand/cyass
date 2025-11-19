@@ -28,9 +28,9 @@ export function useGeolocation(): UseGeolocationReturn {
 
     return new Promise((resolve, reject) => {
       const options: PositionOptions = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000 // 5 minutes
+        enableHighAccuracy: true, // Request GPS instead of network location
+        timeout: 30000, // 30 seconds - give GPS time to get accurate fix
+        maximumAge: 0 // Force fresh reading, no cached data
       }
 
       navigator.geolocation.getCurrentPosition(
@@ -42,6 +42,9 @@ export function useGeolocation(): UseGeolocationReturn {
             timestamp: new Date().toISOString()
           }
 
+          // Log accuracy for debugging
+          console.log(`GPS accuracy: ±${position.coords.accuracy.toFixed(2)}m`)
+
           setCoordinates(coords)
           setLoading(false)
           resolve(coords)
@@ -51,13 +54,13 @@ export function useGeolocation(): UseGeolocationReturn {
 
           switch (error.code) {
             case error.PERMISSION_DENIED:
-              errorMessage = 'Location access denied by user'
+              errorMessage = 'Location access denied by user. Please enable location services in your browser settings.'
               break
             case error.POSITION_UNAVAILABLE:
-              errorMessage = 'Location information is unavailable'
+              errorMessage = 'Location information is unavailable. Make sure GPS is enabled on your device.'
               break
             case error.TIMEOUT:
-              errorMessage = 'Location request timed out'
+              errorMessage = 'Location request timed out. Please try again or ensure you have a clear view of the sky.'
               break
           }
 

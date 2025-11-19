@@ -72,16 +72,35 @@ export default function AddProperty() {
             <div className="d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-sm-between gap-3">
               <div className="flex-fill">
               {coordinates ? (
-                <div className="text-success">
-                  ✅ <strong>Location Captured</strong>
+                <div>
+                  <div className={accuracy && accuracy < 100 ? "text-success" : accuracy && accuracy < 500 ? "text-warning" : "text-danger"}>
+                    {accuracy && accuracy < 100 ? "✅" : accuracy && accuracy < 500 ? "⚠️" : "❌"} <strong>Location Captured</strong>
+                    {accuracy && accuracy > 100 && (
+                      <span className="small ms-2">
+                        {accuracy < 500 ? "(Fair accuracy - consider retrying)" : "(Poor accuracy - please retry)"}
+                      </span>
+                    )}
+                  </div>
                   <div className="small text-muted mt-1 font-monospace">
-                    {formatGPSCoordinates({ 
-                      latitude: coordinates.latitude, 
-                      longitude: coordinates.longitude, 
-                      accuracy, 
-                      timestamp: new Date().toISOString() 
+                    {formatGPSCoordinates({
+                      latitude: coordinates.latitude,
+                      longitude: coordinates.longitude,
+                      accuracy,
+                      timestamp: new Date().toISOString()
                     })}
                   </div>
+                  {accuracy && accuracy > 100 && (
+                    <div className="small mt-2">
+                      <span className={accuracy < 500 ? "badge bg-warning text-dark" : "badge bg-danger"}>
+                        Accuracy: ±{accuracy.toFixed(0)}m {accuracy < 50 ? "Excellent" : accuracy < 100 ? "Good" : accuracy < 500 ? "Fair" : "Poor"}
+                      </span>
+                      {accuracy > 500 && (
+                        <div className="text-muted small mt-1">
+                          💡 Tip: Go outdoors with a clear view of the sky for better GPS accuracy
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : gpsError ? (
                 <div className="text-danger">
@@ -103,6 +122,8 @@ export default function AddProperty() {
                   <div className="spinner-border spinner-border-sm text-light me-2" role="status"></div>
                   Getting Location...
                 </>
+              ) : coordinates ? (
+                <>🔄 Retry GPS</>
               ) : (
                 <>🎯 Capture GPS</>
               )}
