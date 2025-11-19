@@ -12,6 +12,10 @@ export default function AddProperty() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Detect if user is on mobile device
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const isDesktop = !isMobile
+
   const handleSubmit = async (propertyData: CreatePropertyInput) => {
     try {
       setSubmitting(true)
@@ -56,7 +60,21 @@ export default function AddProperty() {
         <div className="card shadow-sm mb-4">
           <div className="card-body p-3">
             <h5 className="card-title fw-medium text-dark mb-3">📍 Location Verification</h5>
-          
+
+            {/* Desktop Warning */}
+            {isDesktop && (
+              <div className="alert alert-info d-flex align-items-start mb-3">
+                <span className="text-info fs-5 me-2">💻</span>
+                <div>
+                  <h6 className="alert-heading small">Desktop Detected</h6>
+                  <p className="mb-0 small">
+                    <strong>Note:</strong> Desktop/laptop GPS accuracy is typically poor (±500-5000m) as most computers don't have GPS hardware.
+                    For accurate property location (±5-50m), please use a mobile device outdoors.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {!coordinates && (
               <div className="alert alert-warning d-flex align-items-start mb-3">
                 <span className="text-warning fs-5 me-2">⚠️</span>
@@ -64,6 +82,7 @@ export default function AddProperty() {
                   <h6 className="alert-heading small">GPS Required</h6>
                   <p className="mb-0 small">
                     You must capture GPS coordinates before submitting the property.
+                    {isMobile && " For best results, go outdoors with a clear view of the sky."}
                   </p>
                 </div>
               </div>
