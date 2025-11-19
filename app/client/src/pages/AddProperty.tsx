@@ -25,6 +25,16 @@ export default function AddProperty() {
         throw new Error('GPS coordinates are required. Please capture location first.')
       }
 
+      // Validate GPS accuracy - prevent poor network-based location
+      if (accuracy && accuracy > 200) {
+        throw new Error(
+          `GPS accuracy is too poor (±${accuracy.toFixed(0)}m). ` +
+          `Your browser may be using network location instead of GPS. ` +
+          `Please enable "Use precise location" in your browser settings and retry GPS capture. ` +
+          `For accurate property inspection, GPS accuracy should be better than ±200m (ideally ±5-50m).`
+        )
+      }
+
       const propertyWithGPS: CreatePropertyInput = {
         ...propertyData,
         gps_coordinates: {
@@ -39,6 +49,8 @@ export default function AddProperty() {
       navigate('/properties')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create property')
+      // Scroll to top to show error
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {
       setSubmitting(false)
     }
@@ -84,6 +96,14 @@ export default function AddProperty() {
                     You must capture GPS coordinates before submitting the property.
                     {isMobile && " For best results, go outdoors with a clear view of the sky."}
                   </p>
+                  {isMobile && (
+                    <div className="mt-2 pt-2 border-top">
+                      <p className="mb-1 small"><strong>📍 Important for Accurate GPS:</strong></p>
+                      <p className="mb-0 small text-muted">
+                        When your browser asks for location permission, make sure to check/enable <strong>"Use precise location"</strong> to get accurate GPS (±5-50m) instead of network location (±500-5000m).
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -113,9 +133,26 @@ export default function AddProperty() {
                       <span className={accuracy < 500 ? "badge bg-warning text-dark" : "badge bg-danger"}>
                         Accuracy: ±{accuracy.toFixed(0)}m {accuracy < 50 ? "Excellent" : accuracy < 100 ? "Good" : accuracy < 500 ? "Fair" : "Poor"}
                       </span>
-                      {accuracy > 500 && (
+                      {accuracy > 200 && (
+                        <div className="alert alert-warning mt-2 mb-0">
+                          <strong>⚠️ Poor GPS Accuracy Detected</strong>
+                          <p className="mb-2 small">Your browser may be using network location instead of GPS.</p>
+                          <p className="mb-1 small"><strong>To fix this:</strong></p>
+                          <ol className="mb-0 small ps-3">
+                            <li>Tap the <strong>padlock (🔒)</strong> icon in your browser address bar</li>
+                            <li>Tap <strong>"Permissions"</strong> or <strong>"Site settings"</strong></li>
+                            <li>Tap <strong>"Location"</strong></li>
+                            <li>Enable <strong>"Use precise location"</strong> toggle</li>
+                            <li>Refresh this page and retry GPS capture</li>
+                          </ol>
+                          <p className="mt-2 mb-0 small text-muted">
+                            Alternative: Clear your browser's site data for this site and re-grant permission, making sure to check "Use precise location"
+                          </p>
+                        </div>
+                      )}
+                      {accuracy > 100 && accuracy <= 200 && (
                         <div className="text-muted small mt-1">
-                          💡 Tip: Go outdoors with a clear view of the sky for better GPS accuracy
+                          💡 Tip: Go outdoors with a clear view of the sky, or check if "Use precise location" is enabled in browser settings
                         </div>
                       )}
                     </div>
