@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import ItemInspection from '../components/ItemInspection'
 import VideoRecorder from '../components/VideoRecorder'
@@ -45,17 +45,23 @@ export default function InspectionFlow() {
   // Track rooms state
   const [rooms, setRooms] = useState<Room[]>([])
   const [roomsCreatedInDb, setRoomsCreatedInDb] = useState(false)
-  
+  const roomsInitializedRef = useRef(false)
+
   // Initialize rooms from location state or report data
+  // Only initialize ONCE to prevent resetting rooms state after video/photo updates
   useEffect(() => {
-    if (rooms.length === 0) {
+    if (!roomsInitializedRef.current && rooms.length === 0) {
       if (location.state?.rooms && location.state.rooms.length > 0) {
+        console.log('Initializing rooms from location.state:', location.state.rooms.length)
         setRooms(location.state.rooms)
+        roomsInitializedRef.current = true
       } else if (report?.rooms && report.rooms.length > 0) {
+        console.log('Initializing rooms from report.rooms:', report.rooms.length)
         setRooms(report.rooms)
+        roomsInitializedRef.current = true
       }
     }
-  }, [location.state?.rooms, report?.rooms, rooms.length])
+  }, [location.state?.rooms, report])
   const currentRoom = rooms[currentRoomIndex]
   const categories = currentRoom ? (DEFAULT_INSPECTION_CATEGORIES[currentRoom.type] || []) : []
   
