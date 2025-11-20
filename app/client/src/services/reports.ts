@@ -190,6 +190,9 @@ export const reportsService = {
       id: data.id,
       name: data.name,
       type: data.type,
+      video_url: data.video_url || undefined,
+      video_duration: data.video_duration || undefined,
+      video_size: data.video_size || undefined,
       items: []
     }
   },
@@ -344,6 +347,9 @@ export const reportsService = {
       id: room.id,
       name: room.name,
       type: room.type,
+      video_url: room.video_url || undefined,
+      video_duration: room.video_duration || undefined,
+      video_size: room.video_size || undefined,
       items: (room.inspection_items || []).map((item: any) => ({
         id: item.id,
         category_id: item.category_id,
