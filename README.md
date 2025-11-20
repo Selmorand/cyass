@@ -28,9 +28,13 @@ A Progressive Web App for professional property condition reporting in South Afr
 - **Supabase** - Backend as a Service
   - PostgreSQL database
   - Authentication
-  - File storage
   - Row Level Security (RLS)
   - Real-time subscriptions
+- **Cloudflare R2** - Object Storage (Production)
+  - Photos and PDFs
+  - S3-compatible API
+  - Free tier: 10GB storage, unlimited bandwidth
+  - Fallback to Supabase Storage if not configured
 
 ## Project Structure
 
@@ -85,13 +89,18 @@ scripts\setup.bat
 ```
 
 3. Configure Supabase:
-   - Create a `.env` file in `app/client/`:
+   - Create a `.env.local` file in `app/client/`:
    ```env
    VITE_SUPABASE_URL=your_supabase_project_url
    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
    ```
 
-4. Set up database:
+4. Configure Cloudflare R2 (Optional - for production storage):
+   - See `R2_CONFIGURATION.md` for complete setup guide
+   - Or see `CLOUDFLARE_R2_SETUP.md` for step-by-step instructions
+   - If not configured, app falls back to Supabase Storage
+
+5. Set up database:
    - Go to Supabase SQL Editor
    - Run SQL files from `/database` folder in order:
      - `database-setup.sql`

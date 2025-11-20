@@ -26,9 +26,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Technology Stack
 - **Frontend**: Vite + React + TypeScript + Tailwind CSS + React Router + PWA
-- **Backend**: Supabase (PostgreSQL + Auth + Storage + Real-time)
+- **Backend**: Supabase (PostgreSQL + Auth + Real-time)
+- **Storage**: Cloudflare R2 (photos/PDFs) with Supabase Storage fallback
 - **PDF Generation**: @react-pdf/renderer
-- **Deployment**: Netlify + Supabase
+- **Deployment**: Netlify + Supabase + Cloudflare R2
 
 ### Development Commands
 ```bash
