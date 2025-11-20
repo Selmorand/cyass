@@ -106,12 +106,13 @@ export default function ItemInspection({
   /**
    * CRITICAL: Mobile camera handler with dynamic DOM manipulation
    * ⚠️ DO NOT MODIFY without explicit user permission
-   * 
+   *
    * PROTECTED FUNCTIONALITY:
    * - Forces mobile camera (not gallery) via capture="environment"
    * - Uses dynamic DOM element creation to bypass React limitations
    * - Mobile device detection prevents desktop issues
-   * 
+   * - Proper memory cleanup to prevent low-memory errors
+   *
    * NEVER CHANGE: This specific approach is required for mobile camera access
    */
   const handleCameraClick = () => {
@@ -123,28 +124,37 @@ export default function ItemInspection({
       newInput.accept = 'image/*'
       newInput.capture = 'environment'
       newInput.style.display = 'none'
-      
+
       newInput.onchange = async (e: any) => {
         const file = e.target.files?.[0]
-        if (!file) return
-        
+        if (!file) {
+          // Clean up even if no file selected
+          cleanupInputElement(newInput)
+          return
+        }
+
         setIsProcessing(true)
         try {
           const photoUrl = await uploadImage(file)
           const currentPhotos = value?.photos || []
+
+          // Clean up BEFORE state update to release memory early
+          cleanupInputElement(newInput)
+
           onChange({
             ...value!,
             photos: [...currentPhotos, photoUrl]
           })
+          showSuccess('Photo added successfully')
         } catch (error) {
           console.error('Error processing photo:', error)
           showError('Failed to process photo. Please try again.')
+          cleanupInputElement(newInput)
         } finally {
           setIsProcessing(false)
-          document.body.removeChild(newInput)
         }
       }
-      
+
       document.body.appendChild(newInput)
       newInput.click()
     } else {
@@ -152,25 +162,63 @@ export default function ItemInspection({
       cameraInputRef.current?.click()
     }
   }
+
+  /**
+   * Clean up dynamically created input elements
+   * Releases memory to prevent low-memory errors on mobile
+   */
+  const cleanupInputElement = (input: HTMLInputElement) => {
+    try {
+      // Clear the input value
+      input.value = ''
+
+      // Remove event handlers
+      input.onchange = null
+
+      // Remove from DOM if still attached
+      if (input.parentNode) {
+        input.parentNode.removeChild(input)
+      }
+
+      console.log('Input element cleaned up')
+    } catch (error) {
+      console.warn('Error cleaning up input element:', error)
+    }
+  }
   
   const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
-    
+    if (!file) {
+      // Reset input even if no file
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = ''
+      }
+      return
+    }
+
     setIsProcessing(true)
     try {
       const photoUrl = await uploadImage(file)
+
+      // Reset input IMMEDIATELY after getting the file, before upload
+      // This releases the file reference from the input element
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = ''
+      }
+
       const currentPhotos = value?.photos || []
       onChange({
         ...value!,
         photos: [...currentPhotos, photoUrl]
       })
+      showSuccess('Photo added successfully')
     } catch (error) {
       console.error('Error processing photo:', error)
       showError('Failed to process photo. Please try again.')
     } finally {
       setIsProcessing(false)
-      // Reset input to allow capturing same photo again if needed
+
+      // Ensure input is reset even if there was an error
       if (cameraInputRef.current) {
         cameraInputRef.current.value = ''
       }

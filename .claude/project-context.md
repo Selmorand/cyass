@@ -43,16 +43,26 @@ CYAss (Cover Your Assets) is a Progressive Web App designed for the South Africa
 ### Backend (Supabase BaaS)
 - PostgreSQL database with RLS
 - Supabase Auth for user management
-- Supabase Storage for photos
 - Real-time subscriptions
 - Serverless functions (future)
+
+### Storage (Dual System)
+- **Primary**: Cloudflare R2 (production/alpha) - Photos & PDFs
+- **Fallback**: Supabase Storage (local dev) - Photos & PDFs
+- Automatic detection and switching based on R2 configuration
+- S3-compatible API via @aws-sdk/client-s3
+- Cost savings: ~$169,000 over 5 years vs Supabase Enterprise
 
 ### Data Flow
 1. User captures inspection data offline
 2. Photos compressed and queued for upload
-3. When online, sync to Supabase
-4. PDF generated client-side with external image URLs
-5. Activity tracked for audit trail
+3. **Optional**: Record 30s-2min video walkthrough per room
+4. When online, sync to storage:
+   - **R2 configured**: Upload photos/videos to Cloudflare R2 (production/alpha)
+   - **R2 not configured**: Upload to Supabase Storage (local dev)
+5. Public URLs stored in Supabase database
+6. PDF generated client-side with external image/video URLs
+7. Activity tracked for audit trail
 
 ## Development Philosophy
 
@@ -79,8 +89,10 @@ CYAss (Cover Your Assets) is a Progressive Web App designed for the South Africa
 ## Current Development Phase
 The project is in production-ready state with:
 - ✅ Core inspection functionality
-- ✅ Photo capture and storage
-- ✅ PDF report generation
+- ✅ Photo capture and storage (R2 + Supabase fallback)
+- ✅ Cloudflare R2 integration (alpha ready)
+- ✅ **Room video walkthroughs** (optional, 2-min max per room)
+- ✅ PDF report generation (with clickable video links)
 - ✅ User authentication
 - ✅ Property management
 - ⏳ Payment integration (stubs ready)
@@ -100,7 +112,10 @@ The project is in production-ready state with:
 - Must work on 3G connections
 - Must support older Android devices (Android 8+)
 - Must handle large photo sets (50+ per report)
-- PDF size limit of 10MB
+- **Video constraints**: 2 minutes max per room, 50MB file size limit
+- PDF size limit of 10MB (excluding externally linked videos)
+- R2 free tier: 10GB storage, unlimited egress (sufficient for alpha with videos)
+- Storage path structure must remain consistent across R2 and Supabase
 
 ### Business Constraints
 - Single-user reports only (current phase)

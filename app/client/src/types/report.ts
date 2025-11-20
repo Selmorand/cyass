@@ -20,6 +20,9 @@ export interface Room {
   name: string
   type: RoomType
   items: InspectionItem[]
+  video_url?: string          // Optional room walkthrough video
+  video_duration?: number      // Duration in seconds (max 120)
+  video_size?: number          // File size in bytes (max 50MB)
 }
 
 export interface Report extends BaseEntity {

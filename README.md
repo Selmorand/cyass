@@ -208,9 +208,19 @@ scripts\test.bat
 3. Add environment variables in Netlify dashboard
 
 ### Environment Variables
-Required for production:
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
+
+**Required for all environments:**
+- `VITE_SUPABASE_URL` - Your Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Your Supabase anonymous key
+
+**Optional for production storage (recommended):**
+- `VITE_R2_ACCOUNT_ID` - Cloudflare account ID
+- `VITE_R2_ACCESS_KEY_ID` - R2 API access key
+- `VITE_R2_SECRET_ACCESS_KEY` - R2 API secret key
+- `VITE_R2_BUCKET_NAME` - R2 bucket name (e.g., cyass-storage)
+- `VITE_R2_PUBLIC_URL` - R2 public URL (e.g., https://pub-xxxxx.r2.dev)
+
+**Note**: If R2 variables are not set, the app automatically falls back to Supabase Storage. See `R2_CONFIGURATION.md` for complete R2 setup instructions.
 
 ## Security
 

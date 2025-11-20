@@ -217,8 +217,8 @@ git push
 
 ### Mobile Camera Implementation
 - **File**: `app/client/src/components/ItemInspection.tsx`
-- **Lines**: 35-36, 117-154
-- **Why**: Forces mobile camera (not gallery) via dynamic DOM
+- **Lines**: 36, 118-187
+- **Why**: Forces mobile camera (not gallery) via dynamic DOM with memory cleanup
 
 ### Storage Integration
 - **File**: `app/client/src/services/storage.ts`
@@ -232,6 +232,7 @@ git push
 ### GPS Accuracy System
 - **Files**: `useGeolocation.ts`, `AddProperty.tsx`
 - **Settings**: `enableHighAccuracy: true`, `maximumAge: 0`
+- **Validation**: 200m accuracy threshold, desktop warnings, mobile-specific guidance
 
 **See `.claude/protected-code.md` for details**
 

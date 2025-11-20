@@ -8,7 +8,9 @@
       "Bash(bash)",
       "Bash(npm:*)",
       "Bash(powershell:*)",
-      "Bash(cmd /c scriptssetup.bat)"
+      "Bash(cmd /c scriptssetup.bat)",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ],
     "deny": [],
     "ask": []

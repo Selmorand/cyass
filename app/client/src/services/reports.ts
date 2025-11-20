@@ -194,14 +194,24 @@ export const reportsService = {
     }
   },
 
-  async updateRoom(roomId: string, name: string): Promise<void> {
+  async updateRoom(
+    reportId: string,
+    roomId: string,
+    updates: {
+      name?: string
+      video_url?: string | null
+      video_duration?: number | null
+      video_size?: number | null
+    }
+  ): Promise<void> {
     const { error } = await supabase
       .from('rooms')
-      .update({ 
-        name, 
-        updated_at: new Date().toISOString() 
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
       })
       .eq('id', roomId)
+      .eq('report_id', reportId)  // Extra safety check
 
     if (error) throw error
   },

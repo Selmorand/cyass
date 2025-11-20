@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import ItemInspection from '../components/ItemInspection'
+import VideoRecorder from '../components/VideoRecorder'
 import RoomSelector from '../components/RoomSelector'
 import { DEFAULT_INSPECTION_CATEGORIES } from '../types'
 import { getProperty } from '../services/properties'
@@ -21,6 +22,9 @@ interface Room {
   id: string
   name: string
   type: RoomType
+  video_url?: string
+  video_duration?: number
+  video_size?: number
 }
 
 export default function InspectionFlow() {
@@ -140,6 +144,35 @@ export default function InspectionFlow() {
         [categoryId]: value
       }
     }))
+  }
+
+  /**
+   * Handle room video upload
+   * Updates room with video URL and metadata
+   */
+  const handleVideoUploaded = async (videoUrl: string, duration: number, fileSize: number) => {
+    if (!reportId || !currentRoom) return
+
+    try {
+      // Update room in database with video details
+      await reportsService.updateRoom(reportId, currentRoom.id, {
+        video_url: videoUrl || null,  // Empty string means delete
+        video_duration: duration || null,
+        video_size: fileSize || null
+      })
+
+      // Update local state
+      setRooms(prev => prev.map(room =>
+        room.id === currentRoom.id
+          ? { ...room, video_url: videoUrl, video_duration: duration, video_size: fileSize }
+          : room
+      ))
+
+      console.log('Room video updated:', { videoUrl, duration, fileSize })
+    } catch (error) {
+      console.error('Failed to update room video:', error)
+      showError('Failed to save video to room')
+    }
   }
   
   
@@ -330,6 +363,15 @@ export default function InspectionFlow() {
           ))}
         </div>
         
+        {/* Room Video Walkthrough */}
+        <VideoRecorder
+          reportId={reportId!}
+          roomId={currentRoom.id}
+          roomName={currentRoom.name}
+          onVideoUploaded={handleVideoUploaded}
+          existingVideoUrl={currentRoom.video_url}
+        />
+
         {/* Inspection items */}
         <div className="vstack gap-3">
           {categories.map((category) => (

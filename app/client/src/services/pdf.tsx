@@ -333,7 +333,24 @@ function PDFReport({ report, property, creatorRole, creatorName, qrCodeDataURL }
               <Text style={styles.roomTitle}>
                 {room.name}
               </Text>
-              
+
+              {/* Room Video Walkthrough Link */}
+              {room.video_url && (
+                <View style={{
+                  backgroundColor: '#e3f2fd',
+                  padding: 8,
+                  borderRadius: 4,
+                  marginBottom: 12
+                }}>
+                  <Text style={{ fontSize: 10, color: '#1976d2', marginBottom: 4 }}>
+                    📹 Room Walkthrough Video
+                  </Text>
+                  <Link src={room.video_url} style={{ fontSize: 9, color: '#0d47a1' }}>
+                    Click to view {room.video_duration ? `(${Math.floor(room.video_duration / 60)}:${(room.video_duration % 60).toString().padStart(2, '0')})` : ''}
+                  </Link>
+                </View>
+              )}
+
               {categories.map((category) => {
                 const item = room.items?.find(i => i.category_id === category.id)
                 if (!item) return null

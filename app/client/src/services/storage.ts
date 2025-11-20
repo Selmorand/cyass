@@ -69,6 +69,63 @@ export const storageService = {
     }
   },
 
+  /**
+   * Upload video to Cloudflare R2 (or Supabase fallback)
+   *
+   * FEATURES:
+   * - Uses Cloudflare R2 when configured (alpha/production)
+   * - Falls back to Supabase Storage if R2 not configured (local dev)
+   * - Organized path: {userId}/{reportId}/{roomId}/walkthrough-{timestamp}.mp4
+   * - 50MB file size limit enforced client-side
+   * - 2 minute duration limit
+   *
+   * @param file - Video blob (MP4 format)
+   * @param reportId - Report ID
+   * @param roomId - Room ID
+   * @returns Public URL for the uploaded video
+   */
+  async uploadVideo(file: Blob, reportId: string, roomId: string): Promise<string> {
+    try {
+      console.log(`Storage: Video using ${useR2 ? 'Cloudflare R2' : 'Supabase Storage'}`)
+
+      // Validate file size (50MB max)
+      const MAX_SIZE = 50 * 1024 * 1024 // 50MB
+      if (file.size > MAX_SIZE) {
+        throw new Error(`Video file too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum size is 50MB.`)
+      }
+
+      if (useR2) {
+        // Use Cloudflare R2 (production/alpha)
+        return await r2StorageService.uploadVideo(file, reportId, roomId)
+      } else {
+        // Fallback to Supabase Storage (local dev)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('User not authenticated')
+
+        const fileName = `${user.id}/${reportId}/${roomId}/walkthrough-${Date.now()}.mp4`
+
+        const { data, error } = await supabase.storage
+          .from('room-videos')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: 'video/mp4'
+          })
+
+        if (error) throw error
+
+        const { data: publicUrl } = supabase.storage
+          .from('room-videos')
+          .getPublicUrl(data.path)
+
+        return publicUrl.publicUrl
+      }
+    } catch (error) {
+      console.error('Storage: uploadVideo failed:', error)
+      throw error
+    }
+  },
+
   async uploadPDF(file: Blob, reportId: string): Promise<string> {
     try {
       console.log(`Storage: PDF using ${useR2 ? 'Cloudflare R2' : 'Supabase Storage'}`)
@@ -115,34 +172,130 @@ export const storageService = {
     }
   },
 
-  async compressImage(file: File, maxWidth: number = 1200, quality: number = 0.8): Promise<File> {
+  /**
+   * Compress image with aggressive memory management for mobile devices
+   *
+   * MEMORY-EFFICIENT FEATURES:
+   * - Detects mobile devices and applies stricter limits
+   * - Immediately revokes object URLs after use
+   * - Cleans up canvas and image objects
+   * - Prevents memory buildup from multiple photos
+   * - Optimized for low-RAM devices
+   *
+   * @param file - The image file to compress
+   * @param maxWidth - Maximum width (default: 1200px, 800px on mobile)
+   * @param quality - JPEG quality (default: 0.8, 0.7 on mobile)
+   */
+  async compressImage(file: File, maxWidth?: number, quality?: number): Promise<File> {
+    // Detect mobile device for more aggressive compression
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+
+    // Mobile-optimized defaults to prevent memory issues
+    const targetMaxWidth = maxWidth ?? (isMobile ? 800 : 1200)
+    const targetQuality = quality ?? (isMobile ? 0.7 : 0.8)
+
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')!
-      const img = new Image()
+      const ctx = canvas.getContext('2d')
 
-      img.onload = () => {
-        const ratio = Math.min(maxWidth / img.width, maxWidth / img.height)
-        canvas.width = img.width * ratio
-        canvas.height = img.height * ratio
-
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const compressedFile = new File([blob], file.name, {
-              type: 'image/jpeg',
-              lastModified: Date.now()
-            })
-            resolve(compressedFile)
-          } else {
-            resolve(file)
-          }
-        }, 'image/jpeg', quality)
+      if (!ctx) {
+        console.warn('Canvas context not available, returning original file')
+        resolve(file)
+        return
       }
 
-      img.src = URL.createObjectURL(file)
+      const img = new Image()
+      let objectUrl: string | null = null
+
+      // Error handler
+      img.onerror = () => {
+        console.error('Failed to load image for compression')
+        this.cleanupMemory(canvas, img, objectUrl)
+        resolve(file) // Return original on error
+      }
+
+      // Success handler
+      img.onload = () => {
+        try {
+          // Calculate dimensions while respecting aspect ratio
+          const ratio = Math.min(targetMaxWidth / img.width, targetMaxWidth / img.height, 1)
+          canvas.width = Math.floor(img.width * ratio)
+          canvas.height = Math.floor(img.height * ratio)
+
+          // Draw compressed image
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+          // Convert to blob with quality setting
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              })
+
+              console.log('Image compressed successfully:', {
+                originalSize: (file.size / 1024).toFixed(2) + 'KB',
+                compressedSize: (blob.size / 1024).toFixed(2) + 'KB',
+                dimensions: `${canvas.width}x${canvas.height}`,
+                isMobile
+              })
+
+              // Cleanup memory before resolving
+              this.cleanupMemory(canvas, img, objectUrl)
+              resolve(compressedFile)
+            } else {
+              console.warn('Blob creation failed, returning original file')
+              this.cleanupMemory(canvas, img, objectUrl)
+              resolve(file)
+            }
+          }, 'image/jpeg', targetQuality)
+
+        } catch (error) {
+          console.error('Error during image compression:', error)
+          this.cleanupMemory(canvas, img, objectUrl)
+          resolve(file) // Return original on error
+        }
+      }
+
+      // Create object URL and load image
+      try {
+        objectUrl = URL.createObjectURL(file)
+        img.src = objectUrl
+      } catch (error) {
+        console.error('Failed to create object URL:', error)
+        resolve(file)
+      }
     })
+  },
+
+  /**
+   * Clean up memory used during image processing
+   * CRITICAL for preventing memory leaks on mobile devices
+   */
+  cleanupMemory(canvas: HTMLCanvasElement, img: HTMLImageElement, objectUrl: string | null) {
+    try {
+      // Clear canvas
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+      }
+      canvas.width = 0
+      canvas.height = 0
+
+      // Clear image source
+      img.src = ''
+      img.onload = null
+      img.onerror = null
+
+      // Revoke object URL to free memory
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+      }
+
+      console.log('Memory cleanup completed')
+    } catch (error) {
+      console.warn('Error during memory cleanup:', error)
+    }
   },
 
   /**
