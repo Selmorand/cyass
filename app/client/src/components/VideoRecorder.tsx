@@ -95,7 +95,13 @@ export default function VideoRecorder({
     try {
       cleanup() // Clean up any previous recording
 
+      // Set recording state FIRST so video element is rendered
+      setIsRecording(true)
+
       console.log('VideoRecorder: Requesting camera access...')
+
+      // Small delay to ensure video element is in DOM
+      await new Promise(resolve => setTimeout(resolve, 100))
 
       // Mobile-optimized video constraints for lower RAM usage
       const constraints: MediaStreamConstraints = {
@@ -112,7 +118,7 @@ export default function VideoRecorder({
 
       console.log('VideoRecorder: Camera access granted, setting up preview...')
 
-      // Set up video preview IMMEDIATELY
+      // Set up video preview
       if (videoPreviewRef.current) {
         videoPreviewRef.current.srcObject = stream
         videoPreviewRef.current.muted = true
@@ -124,8 +130,10 @@ export default function VideoRecorder({
           console.log('VideoRecorder: Preview playing')
         } catch (playError) {
           console.warn('VideoRecorder: Autoplay prevented:', playError)
-          // Preview will show once user interacts
+          // Try to play on user interaction
         }
+      } else {
+        console.error('VideoRecorder: Video element not found in DOM')
       }
 
       // Determine best codec and mime type
@@ -207,7 +215,6 @@ export default function VideoRecorder({
 
       // Start recording
       mediaRecorder.start(1000) // Collect data every 1 second
-      setIsRecording(true)
       recordingStartTimeRef.current = Date.now()
 
       // Start timer
@@ -239,6 +246,7 @@ export default function VideoRecorder({
       }
 
       cleanup()
+      setIsRecording(false)
     }
   }
 
