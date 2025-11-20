@@ -6,8 +6,47 @@ import QRCode from 'qrcode-generator'
 
 // Extended photo type for PDF processing
 type ProcessedPhoto = {
-  thumbnailUrl: string
-  externalUrl: string | null
+  thumbnailUrl: string // Data URL for embedding in PDF
+  externalUrl: string | null // HTTP URL for clickable link
+}
+
+/**
+ * Convert image URL to data URL for PDF embedding
+ * This eliminates CORS issues with @react-pdf/renderer
+ */
+async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous' // Enable CORS
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width
+        canvas.height = img.height
+
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'))
+          return
+        }
+
+        ctx.drawImage(img, 0, 0)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+        resolve(dataUrl)
+      } catch (error) {
+        console.error('Error converting image to data URL:', error)
+        reject(error)
+      }
+    }
+
+    img.onerror = () => {
+      console.error('Failed to load image:', imageUrl)
+      reject(new Error(`Failed to load image: ${imageUrl}`))
+    }
+
+    img.src = imageUrl
+  })
 }
 
 // Generate QR code for report URL
@@ -482,22 +521,28 @@ async function preprocessReportForPDF(report: Report): Promise<Report> {
           if (item.photos && item.photos.length > 0) {
             for (const photoUrl of item.photos) {
               try {
+                // Convert image to data URL for PDF embedding (eliminates CORS issues)
+                console.log('Converting image to data URL:', photoUrl)
+                const dataUrl = await imageUrlToDataUrl(photoUrl)
+
+                // Get external URL for clickable link
                 const externalUrl = await storageService.getExternalImageUrl(
                   photoUrl,
                   PDF_CONFIG.useSignedUrls,
                   PDF_CONFIG.urlExpirySeconds
                 )
-                
+
                 processedItem.photos.push({
-                  thumbnailUrl: photoUrl, // Use original URL for thumbnail
-                  externalUrl: externalUrl, // Use external URL for link
+                  thumbnailUrl: dataUrl, // Use data URL for PDF embedding
+                  externalUrl: externalUrl, // Use HTTP URL for clickable link
                 })
+                console.log('Successfully processed photo for PDF')
               } catch (error) {
-                console.warn('Failed to generate external URL for photo:', photoUrl, error)
-                // Fallback: add without external link
+                console.warn('Failed to process photo for PDF:', photoUrl, error)
+                // Fallback: try using original URL (may not work due to CORS)
                 processedItem.photos.push({
                   thumbnailUrl: photoUrl,
-                  externalUrl: null,
+                  externalUrl: photoUrl,
                 })
               }
             }
