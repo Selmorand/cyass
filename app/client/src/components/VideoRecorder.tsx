@@ -10,7 +10,6 @@ interface VideoRecorderProps {
   existingVideoUrl?: string
 }
 
-const MAX_DURATION = 120 // 2 minutes in seconds
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
 export default function VideoRecorder({
@@ -20,21 +19,19 @@ export default function VideoRecorder({
   onVideoUploaded,
   existingVideoUrl
 }: VideoRecorderProps) {
-  const [isRecording, setIsRecording] = useState(false)
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
+  const [videoFile, setVideoFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [videoDuration, setVideoDuration] = useState(0)
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
   const videoPreviewRef = useRef<HTMLVideoElement>(null)
-  const livePreviewRef = useRef<HTMLVideoElement>(null)
 
   const { showError, showSuccess, showWarning } = useNotification()
+
+  // Detect mobile device
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
   // Cleanup on unmount
   useEffect(() => {
@@ -45,199 +42,145 @@ export default function VideoRecorder({
 
   /**
    * Cleanup all media resources and memory
-   * CRITICAL for preventing memory leaks
    */
   const cleanup = () => {
     try {
-      // Stop all tracks
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop())
-        streamRef.current = null
-      }
-
-      // Clean up live preview
-      if (livePreviewRef.current) {
-        livePreviewRef.current.srcObject = null
-      }
-
-      // Clean up media recorder
-      if (mediaRecorderRef.current) {
-        if (mediaRecorderRef.current.state !== 'inactive') {
-          mediaRecorderRef.current.stop()
-        }
-        mediaRecorderRef.current = null
-      }
-
-      // Clear timer
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
-
-      // Revoke object URLs to free memory
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl)
         setPreviewUrl(null)
       }
-
-      // Clear chunks
-      chunksRef.current = []
-
       console.log('VideoRecorder: Cleanup completed')
     } catch (error) {
       console.warn('VideoRecorder: Error during cleanup:', error)
     }
   }
 
-  const startRecording = async () => {
-    try {
-      // Clean up any existing resources first
-      cleanup()
+  /**
+   * Handle video capture - opens native camera app with its own preview
+   * Same approach as photo capture
+   */
+  const handleVideoCaptureClick = () => {
+    if (isMobile && videoInputRef.current) {
+      // Create dynamic input for mobile (forces camera, not gallery)
+      const newInput = document.createElement('input')
+      newInput.type = 'file'
+      newInput.accept = 'video/*'
+      newInput.capture = 'environment' // Rear camera
+      newInput.style.display = 'none'
 
-      // Request camera access (environment = rear camera on mobile)
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 24 },
-          facingMode: 'environment'
-        },
-        audio: true
-      })
-
-      streamRef.current = stream
-
-      // Show live preview - with error handling
-      if (livePreviewRef.current) {
-        livePreviewRef.current.srcObject = stream
-
-        // Play the video stream with error handling
-        try {
-          await livePreviewRef.current.play()
-          console.log('Live preview started successfully')
-        } catch (playError) {
-          console.warn('Could not auto-play live preview:', playError)
-          // On some browsers, autoplay might be blocked
-          // The video will still record, just no preview
-        }
-      }
-
-      // Configure MediaRecorder for efficient compression
-      const options: MediaRecorderOptions = {
-        mimeType: getSupportedMimeType(),
-        videoBitsPerSecond: 1000000  // 1 Mbps - good quality, small file
-      }
-
-      const mediaRecorder = new MediaRecorder(stream, options)
-      mediaRecorderRef.current = mediaRecorder
-
-      // Collect video chunks
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          chunksRef.current.push(event.data)
-        }
-      }
-
-      // Handle recording stop
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/mp4' })
-
-        // Check file size
-        if (blob.size > MAX_FILE_SIZE) {
-          showError(`Video file is too large (${(blob.size / 1024 / 1024).toFixed(1)}MB). Maximum is 50MB. Try recording for less time.`)
-          cleanup()
-          setRecordingTime(0)
-          setIsRecording(false)
+      newInput.onchange = async (e: any) => {
+        const file = e.target.files?.[0]
+        if (!file) {
+          cleanupInputElement(newInput)
           return
         }
 
-        setRecordedBlob(blob)
-
-        // Create preview URL
-        const url = URL.createObjectURL(blob)
-        setPreviewUrl(url)
-        setIsPreviewing(true)
-
-        // Stop camera to save battery
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop())
-          streamRef.current = null
-        }
-
-        console.log('Recording completed:', {
-          size: `${(blob.size / 1024 / 1024).toFixed(2)}MB`,
-          duration: `${recordingTime}s`
-        })
+        handleVideoSelected(file)
+        cleanupInputElement(newInput)
       }
 
-      // Start recording
-      mediaRecorder.start()
-      setIsRecording(true)
-      setRecordingTime(0)
-
-      // Start timer
-      timerRef.current = setInterval(() => {
-        setRecordingTime(prev => {
-          const newTime = prev + 1
-
-          // Auto-stop at 2 minutes
-          if (newTime >= MAX_DURATION) {
-            stopRecording()
-            showWarning('Maximum recording time (2 minutes) reached')
-          }
-
-          return newTime
-        })
-      }, 1000)
-
-    } catch (error) {
-      console.error('Failed to start recording:', error)
-      cleanup()
-
-      if (error instanceof Error) {
-        if (error.name === 'NotAllowedError') {
-          showError('Camera permission denied. Please allow camera access to record room walkthroughs.')
-        } else if (error.name === 'NotFoundError') {
-          showError('No camera found on this device.')
-        } else {
-          showError('Failed to access camera: ' + error.message)
-        }
-      }
+      document.body.appendChild(newInput)
+      newInput.click()
+    } else {
+      // Desktop or fallback
+      videoInputRef.current?.click()
     }
   }
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
+  const cleanupInputElement = (input: HTMLInputElement) => {
+    try {
+      input.value = ''
+      input.onchange = null
+      if (input.parentNode) {
+        input.parentNode.removeChild(input)
+      }
+    } catch (error) {
+      console.warn('Error cleaning up input element:', error)
+    }
+  }
+
+  const handleVideoSelected = async (file: File) => {
+    try {
+      // Clean up previous video if any
+      cleanup()
+
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        showError(`Video file too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 50MB.`)
+        return
+      }
+
+      // Validate it's a video
+      if (!file.type.startsWith('video/')) {
+        showError('Please select a video file')
+        return
+      }
+
+      console.log('Video selected:', {
+        name: file.name,
+        type: file.type,
+        size: `${(file.size / 1024 / 1024).toFixed(2)}MB`
+      })
+
+      setVideoFile(file)
+
+      // Create preview URL
+      const url = URL.createObjectURL(file)
+      setPreviewUrl(url)
+      setIsPreviewing(true)
+
+    } catch (error) {
+      console.error('Error handling video:', error)
+      showError('Failed to process video')
+    }
+  }
+
+  const handleVideoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) {
+      if (videoInputRef.current) {
+        videoInputRef.current.value = ''
+      }
+      return
     }
 
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
+    handleVideoSelected(file)
 
-    setIsRecording(false)
+    // Clear input for next use
+    if (videoInputRef.current) {
+      videoInputRef.current.value = ''
+    }
+  }
+
+  const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget
+    setVideoDuration(Math.floor(video.duration))
+
+    // Check duration limit (2 minutes = 120 seconds)
+    if (video.duration > 120) {
+      showWarning(`Video is ${formatTime(Math.floor(video.duration))} long. Recommended max is 2 minutes for faster uploads.`)
+    }
   }
 
   const uploadVideo = async () => {
-    if (!recordedBlob) return
+    if (!videoFile) return
 
     try {
       setIsUploading(true)
 
       // Upload video
-      const videoUrl = await storageService.uploadVideo(recordedBlob, reportId, roomId)
+      const videoUrl = await storageService.uploadVideo(videoFile, reportId, roomId)
 
       // Callback with video details
-      onVideoUploaded(videoUrl, recordingTime, recordedBlob.size)
+      onVideoUploaded(videoUrl, videoDuration, videoFile.size)
 
       showSuccess('Room walkthrough video uploaded successfully!')
 
-      // Cleanup after upload
+      // Cleanup
       cleanup()
-      setRecordedBlob(null)
+      setVideoFile(null)
       setIsPreviewing(false)
-      setRecordingTime(0)
+      setVideoDuration(0)
 
     } catch (error) {
       console.error('Failed to upload video:', error)
@@ -249,9 +192,9 @@ export default function VideoRecorder({
 
   const discardVideo = () => {
     cleanup()
-    setRecordedBlob(null)
+    setVideoFile(null)
     setIsPreviewing(false)
-    setRecordingTime(0)
+    setVideoDuration(0)
   }
 
   const deleteExistingVideo = () => {
@@ -259,23 +202,6 @@ export default function VideoRecorder({
       onVideoUploaded('', 0, 0) // Empty values to delete
       showSuccess('Video removed')
     }
-  }
-
-  const getSupportedMimeType = (): string => {
-    const types = [
-      'video/mp4',
-      'video/webm;codecs=vp9',
-      'video/webm;codecs=vp8',
-      'video/webm'
-    ]
-
-    for (const type of types) {
-      if (MediaRecorder.isTypeSupported(type)) {
-        return type
-      }
-    }
-
-    return 'video/webm' // fallback
   }
 
   const formatTime = (seconds: number): string => {
@@ -292,9 +218,18 @@ export default function VideoRecorder({
         </h5>
 
         <p className="small text-muted mb-3">
-          Record a 30-second to 2-minute video walkthrough of {roomName}.
-          This provides additional context for your inspection.
+          Record a video walkthrough of {roomName}. Your device camera app will open with its own preview.
         </p>
+
+        {/* Hidden file input */}
+        <input
+          ref={videoInputRef}
+          type="file"
+          accept="video/*"
+          capture="environment"
+          onChange={handleVideoCapture}
+          style={{ display: 'none' }}
+        />
 
         {/* Existing Video */}
         {existingVideoUrl && !isPreviewing && (
@@ -319,77 +254,20 @@ export default function VideoRecorder({
           </div>
         )}
 
-        {/* Recording Controls */}
-        {!isRecording && !isPreviewing && !existingVideoUrl && (
+        {/* Record Button */}
+        {!isPreviewing && !existingVideoUrl && (
           <button
-            onClick={startRecording}
+            onClick={handleVideoCaptureClick}
             className="btn btn-primary w-100"
             disabled={isUploading}
           >
             <span className="me-2">🎥</span>
-            Start Recording
+            Record Video
           </button>
         )}
 
-        {/* Recording Status with Live Preview */}
-        {isRecording && (
-          <div className="text-center">
-            {/* Live camera preview */}
-            <div className="mb-3 position-relative">
-              <video
-                ref={livePreviewRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-100 rounded"
-                style={{
-                  maxHeight: '400px',
-                  backgroundColor: '#000',
-                  objectFit: 'cover',
-                  transform: 'scaleX(-1)' // Mirror the preview like a selfie camera
-                }}
-                onLoadedMetadata={(e) => {
-                  // Ensure video plays when metadata is loaded
-                  const video = e.currentTarget
-                  video.play().catch(err => console.warn('Play failed:', err))
-                }}
-              />
-              {/* Recording indicator overlay */}
-              <div
-                className="position-absolute top-0 start-0 m-2"
-                style={{ zIndex: 10 }}
-              >
-                <span className="badge bg-danger fs-6 px-3 py-2">
-                  ⏺ REC {formatTime(recordingTime)} / {formatTime(MAX_DURATION)}
-                </span>
-              </div>
-
-              {/* Fallback message if preview doesn't work */}
-              <div
-                className="position-absolute top-50 start-50 translate-middle text-white text-center"
-                style={{ pointerEvents: 'none' }}
-              >
-                <small className="opacity-50">
-                  Recording in progress...<br/>
-                  {formatTime(recordingTime)}
-                </small>
-              </div>
-            </div>
-
-            <button
-              onClick={stopRecording}
-              className="btn btn-danger btn-lg w-100"
-            >
-              ⏹ Stop Recording
-            </button>
-            <p className="small text-muted mt-2">
-              Point camera around the room. Recording will auto-stop at 2 minutes.
-            </p>
-          </div>
-        )}
-
         {/* Preview & Upload */}
-        {isPreviewing && recordedBlob && (
+        {isPreviewing && videoFile && (
           <div>
             <div className="mb-3">
               <video
@@ -397,13 +275,14 @@ export default function VideoRecorder({
                 src={previewUrl || undefined}
                 controls
                 className="w-100 rounded"
-                style={{ maxHeight: '300px' }}
+                style={{ maxHeight: '300px', backgroundColor: '#000' }}
+                onLoadedMetadata={handleLoadedMetadata}
               />
             </div>
 
             <div className="d-flex align-items-center justify-content-between mb-3 small text-muted">
-              <span>Duration: {formatTime(recordingTime)}</span>
-              <span>Size: {(recordedBlob.size / 1024 / 1024).toFixed(1)}MB</span>
+              <span>Duration: {formatTime(videoDuration)}</span>
+              <span>Size: {(videoFile.size / 1024 / 1024).toFixed(1)}MB</span>
             </div>
 
             <div className="d-grid gap-2">
@@ -437,13 +316,14 @@ export default function VideoRecorder({
         )}
 
         {/* Info */}
-        {!isRecording && !isPreviewing && !existingVideoUrl && (
+        {!isPreviewing && !existingVideoUrl && (
           <div className="alert alert-light mt-3 mb-0 small">
             <strong>Tips:</strong>
             <ul className="mb-0 mt-1 ps-3">
+              <li>Your camera app will open with its own preview</li>
               <li>Hold phone steady and move slowly</li>
               <li>Show all areas of the room</li>
-              <li>Keep recording under 2 minutes</li>
+              <li>Keep recording under 2 minutes for faster upload</li>
               <li>Good lighting helps video quality</li>
             </ul>
           </div>
