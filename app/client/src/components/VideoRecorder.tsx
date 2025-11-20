@@ -107,10 +107,19 @@ export default function VideoRecorder({
 
       streamRef.current = stream
 
-      // Show live preview
+      // Show live preview - with error handling
       if (livePreviewRef.current) {
         livePreviewRef.current.srcObject = stream
-        livePreviewRef.current.play()
+
+        // Play the video stream with error handling
+        try {
+          await livePreviewRef.current.play()
+          console.log('Live preview started successfully')
+        } catch (playError) {
+          console.warn('Could not auto-play live preview:', playError)
+          // On some browsers, autoplay might be blocked
+          // The video will still record, just no preview
+        }
       }
 
       // Configure MediaRecorder for efficient compression
@@ -336,7 +345,13 @@ export default function VideoRecorder({
                 style={{
                   maxHeight: '400px',
                   backgroundColor: '#000',
-                  objectFit: 'cover'
+                  objectFit: 'cover',
+                  transform: 'scaleX(-1)' // Mirror the preview like a selfie camera
+                }}
+                onLoadedMetadata={(e) => {
+                  // Ensure video plays when metadata is loaded
+                  const video = e.currentTarget
+                  video.play().catch(err => console.warn('Play failed:', err))
                 }}
               />
               {/* Recording indicator overlay */}
@@ -347,6 +362,17 @@ export default function VideoRecorder({
                 <span className="badge bg-danger fs-6 px-3 py-2">
                   ⏺ REC {formatTime(recordingTime)} / {formatTime(MAX_DURATION)}
                 </span>
+              </div>
+
+              {/* Fallback message if preview doesn't work */}
+              <div
+                className="position-absolute top-50 start-50 translate-middle text-white text-center"
+                style={{ pointerEvents: 'none' }}
+              >
+                <small className="opacity-50">
+                  Recording in progress...<br/>
+                  {formatTime(recordingTime)}
+                </small>
               </div>
             </div>
 
