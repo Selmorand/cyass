@@ -268,7 +268,31 @@ export default function ReportSummary({ isPublic = false }: ReportSummaryProps) 
                         </div>
                         <h4 className="fw-bold text-dark mb-0" style={{ color: '#0c0e43' }}>{room.name}</h4>
                       </div>
-                      
+
+                      {/* Room Video Walkthrough */}
+                      {room.video_url && (
+                        <div className="alert alert-info mb-4">
+                          <div className="d-flex align-items-center justify-content-between">
+                            <div>
+                              <strong>📹 Room Walkthrough Video</strong>
+                              {room.video_duration && (
+                                <span className="ms-2 text-muted">
+                                  ({Math.floor(room.video_duration / 60)}:{(room.video_duration % 60).toString().padStart(2, '0')})
+                                </span>
+                              )}
+                            </div>
+                            <a
+                              href={room.video_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-primary"
+                            >
+                              View Video
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Room Items */}
                       <div className="vstack gap-4">
                         {categories.map((category) => {
