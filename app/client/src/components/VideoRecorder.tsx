@@ -11,7 +11,7 @@ interface VideoRecorderProps {
 }
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
-const MAX_DURATION = 120 // 2 minutes in seconds
+const MAX_DURATION = 60 // 1 minute in seconds
 
 export default function VideoRecorder({
   reportId,
@@ -110,7 +110,7 @@ export default function VideoRecorder({
           width: { ideal: isMobile ? 640 : 1280, max: isMobile ? 720 : 1280 },
           height: { ideal: isMobile ? 480 : 720, max: isMobile ? 720 : 720 }
         },
-        audio: true
+        audio: true // Record audio with video
       }
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
@@ -394,7 +394,7 @@ export default function VideoRecorder({
             <div className="alert alert-warning mt-3 mb-0 small">
               <strong>Recording in progress:</strong>
               <ul className="mb-0 mt-1 ps-3">
-                <li>Video will auto-stop at 2 minutes</li>
+                <li>Video will auto-stop at 1 minute</li>
                 <li>Hold phone steady and move slowly</li>
                 <li>Show all areas of the room</li>
               </ul>
@@ -419,7 +419,7 @@ export default function VideoRecorder({
                 <li>Video is compressed to {isMobile ? '500 Kbps' : '1 Mbps'} to save RAM</li>
                 <li>Hold phone steady and move slowly</li>
                 <li>Show all areas of the room</li>
-                <li>Maximum 2 minutes recording time</li>
+                <li>Maximum 1 minute recording time</li>
                 <li>Good lighting helps video quality</li>
               </ul>
             </div>
