@@ -183,15 +183,15 @@ export const storageService = {
    * - Optimized for low-RAM devices
    *
    * @param file - The image file to compress
-   * @param maxWidth - Maximum width (default: 1200px, 800px on mobile)
+   * @param maxWidth - Maximum width (default: 1024px)
    * @param quality - JPEG quality (default: 0.8, 0.7 on mobile)
    */
   async compressImage(file: File, maxWidth?: number, quality?: number): Promise<File> {
     // Detect mobile device for more aggressive compression
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
-    // Mobile-optimized defaults to prevent memory issues
-    const targetMaxWidth = maxWidth ?? (isMobile ? 800 : 1200)
+    // 1024px max width for both mobile and desktop
+    const targetMaxWidth = maxWidth ?? 1024
     const targetQuality = quality ?? (isMobile ? 0.7 : 0.8)
 
     return new Promise((resolve) => {

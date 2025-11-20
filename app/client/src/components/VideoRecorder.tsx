@@ -103,12 +103,12 @@ export default function VideoRecorder({
       // Small delay to ensure video element is in DOM
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      // Mobile-optimized video constraints for lower RAM usage
+      // 720p video resolution for both mobile and desktop
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: 'environment', // Rear camera
-          width: { ideal: isMobile ? 640 : 1280, max: isMobile ? 720 : 1280 },
-          height: { ideal: isMobile ? 480 : 720, max: isMobile ? 720 : 720 }
+          width: { ideal: 1280, max: 1280 },
+          height: { ideal: 720, max: 720 }
         },
         audio: true // Record audio with video
       }
