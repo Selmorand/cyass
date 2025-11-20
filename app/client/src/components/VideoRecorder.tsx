@@ -32,6 +32,7 @@ export default function VideoRecorder({
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const videoPreviewRef = useRef<HTMLVideoElement>(null)
+  const livePreviewRef = useRef<HTMLVideoElement>(null)
 
   const { showError, showSuccess, showWarning } = useNotification()
 
@@ -52,6 +53,11 @@ export default function VideoRecorder({
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
         streamRef.current = null
+      }
+
+      // Clean up live preview
+      if (livePreviewRef.current) {
+        livePreviewRef.current.srcObject = null
       }
 
       // Clean up media recorder
@@ -100,6 +106,12 @@ export default function VideoRecorder({
       })
 
       streamRef.current = stream
+
+      // Show live preview
+      if (livePreviewRef.current) {
+        livePreviewRef.current.srcObject = stream
+        livePreviewRef.current.play()
+      }
 
       // Configure MediaRecorder for efficient compression
       const options: MediaRecorderOptions = {
@@ -310,14 +322,34 @@ export default function VideoRecorder({
           </button>
         )}
 
-        {/* Recording Status */}
+        {/* Recording Status with Live Preview */}
         {isRecording && (
           <div className="text-center">
-            <div className="mb-3">
-              <span className="badge bg-danger fs-5 px-4 py-2">
-                ⏺ REC {formatTime(recordingTime)} / {formatTime(MAX_DURATION)}
-              </span>
+            {/* Live camera preview */}
+            <div className="mb-3 position-relative">
+              <video
+                ref={livePreviewRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-100 rounded"
+                style={{
+                  maxHeight: '400px',
+                  backgroundColor: '#000',
+                  objectFit: 'cover'
+                }}
+              />
+              {/* Recording indicator overlay */}
+              <div
+                className="position-absolute top-0 start-0 m-2"
+                style={{ zIndex: 10 }}
+              >
+                <span className="badge bg-danger fs-6 px-3 py-2">
+                  ⏺ REC {formatTime(recordingTime)} / {formatTime(MAX_DURATION)}
+                </span>
+              </div>
             </div>
+
             <button
               onClick={stopRecording}
               className="btn btn-danger btn-lg w-100"
