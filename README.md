@@ -6,9 +6,10 @@ A Progressive Web App for professional property condition reporting in South Afr
 
 - **Property Management**: Add and manage multiple properties with SA-specific address formats
 - **Room-by-Room Inspection**: Detailed condition assessment for each room and item
-- **Photo Documentation**: Capture and attach multiple photos per inspection item
+- **Photo Documentation**: Capture and attach multiple photos per inspection item (1024px, compressed)
+- **Video Walkthroughs**: Optional 1-minute video recording per room (720p, memory-efficient)
 - **GPS Location Capture**: Automatic GPS coordinates with accuracy tracking
-- **PDF Report Generation**: Professional PDF reports with watermarks and legal disclaimers
+- **PDF Report Generation**: Professional PDF reports with watermarks, legal disclaimers, and clickable video links
 - **Role-Based Access**: Support for tenants, landlords, buyers, sellers, and agents
 - **Offline Capability**: PWA features for working without internet connection
 - **Mobile Optimized**: Responsive design with direct camera access on mobile devices
@@ -136,17 +137,20 @@ Production files will be in `app/client/dist/`. Deploy to Netlify, Vercel, or an
 ### Inspection Flow
 1. Select or add a property
 2. Choose rooms to inspect
-3. For each room, assess predefined items:
-   - Walls, Windows, Doors
-   - Floors/Carpets, Ceilings
-   - Room-specific items (plumbing, appliances, etc.)
-4. Rate condition (Good/Fair/Poor/Urgent Repair/N/A)
-5. Add comments (mandatory for issues)
-6. Capture photos with direct camera access
+3. For each room:
+   - **(Optional)** Record 1-minute video walkthrough showing the entire room
+   - Assess predefined items:
+     - Walls, Windows, Doors
+     - Floors/Carpets, Ceilings
+     - Room-specific items (plumbing, appliances, etc.)
+   - Rate condition (Good/Fair/Poor/Urgent Repair/N/A)
+   - Add comments (mandatory for issues)
+   - Capture photos with direct camera access (1024px, compressed)
 
 ### Report Generation
 - Professional PDF format
 - Photo grids with clickable thumbnails
+- Clickable video links with duration (external URLs)
 - GPS coordinates and timestamps
 - Legal disclaimers and watermarks
 - Creator role identification

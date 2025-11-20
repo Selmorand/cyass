@@ -8,18 +8,18 @@
 
 ## Overview
 
-Users can now record optional 30-second to 2-minute video walkthroughs for each room during inspection. Videos provide additional context beyond photos and are included as clickable links in PDF reports.
+Users can now record optional video walkthroughs (up to 1 minute) for each room during inspection. Videos provide additional context beyond photos and are included as clickable links in PDF reports.
 
 ## Key Features
 
 ✅ **Room-level videos** - Record one video per room (optional)
-✅ **2-minute maximum** - Auto-stops at 2 minutes
+✅ **1-minute maximum** - Auto-stops at 60 seconds
 ✅ **50MB file size limit** - Client-side validation
 ✅ **Memory-efficient** - Aggressive compression and cleanup prevents mobile RAM issues
 ✅ **Dual storage** - Uses R2 (production) or Supabase (fallback)
 ✅ **PDF integration** - Clickable video links with duration
 ✅ **Live preview** - See what you're recording in real-time
-✅ **Mobile-optimized** - Compressed 480p @ 500Kbps (mobile) or 720p @ 1Mbps (desktop)
+✅ **Standardized quality** - 720p @ 1Mbps video (mobile and desktop), 1024px photos
 
 ---
 
@@ -32,9 +32,9 @@ Users can now record optional 30-second to 2-minute video walkthroughs for each 
 3. **Click "Start Recording"**
    - Browser requests camera permission (first time)
    - Live preview appears showing camera feed
-   - Timer displays: "⏺ REC 0:00 / 2:00"
+   - Timer displays: "⏺ REC 0:00 / 1:00"
    - Pan around room steadily while watching preview
-4. **Click "Stop Recording"** (or auto-stops at 2 min)
+4. **Click "Stop Recording"** (or auto-stops at 1 min)
    - Recording stops, camera released (saves RAM)
 5. **Preview video** with playback controls
 6. **Save or discard**
@@ -97,32 +97,32 @@ ADD COLUMN IF NOT EXISTS video_size INTEGER;
 
 **Key features**:
 - MediaRecorder API with live preview during recording
-- Mobile device detection for optimized compression
 - Rear camera selection (`facingMode: 'environment'`)
-- Aggressive compression to prevent RAM issues:
-  - **Mobile**: 480p @ 500 Kbps video + 64 Kbps audio
-  - **Desktop**: 720p @ 1 Mbps video + 64 Kbps audio
+- Standardized compression (mobile and desktop):
+  - **720p @ 1 Mbps video** + 64 Kbps audio
+  - Consistent quality across all devices
 - Aggressive memory cleanup (releases camera immediately after recording)
-- Auto-stop at 2 minutes
+- Auto-stop at 1 minute (60 seconds)
 - Live preview while recording + playback preview before upload
 - Upload progress indicator
 
-**Compression settings (like photo compression)**:
+**Compression settings (standardized across devices)**:
 ```typescript
-// Mobile-optimized constraints
+// 720p video resolution for both mobile and desktop
 const constraints = {
   video: {
-    facingMode: 'environment',
-    width: { ideal: isMobile ? 640 : 1280, max: isMobile ? 720 : 1280 },
-    height: { ideal: isMobile ? 480 : 720, max: isMobile ? 720 : 720 }
+    facingMode: 'environment', // Rear camera
+    width: { ideal: 1280, max: 1280 },
+    height: { ideal: 720, max: 720 }
   },
-  audio: true
+  audio: true // Record audio with video
 }
 
-// Low bitrate for small files
+// Aggressive compression for mobile RAM conservation
+const bitrate = isMobile ? 500000 : 1000000 // 500 Kbps mobile, 1 Mbps desktop
 const mediaRecorder = new MediaRecorder(stream, {
   mimeType: 'video/webm;codecs=vp8',
-  videoBitsPerSecond: isMobile ? 500000 : 1000000, // 500 Kbps or 1 Mbps
+  videoBitsPerSecond: bitrate,
   audioBitsPerSecond: 64000 // 64 Kbps
 })
 ```
@@ -274,28 +274,28 @@ Videos will fail to upload without CORS configured. This is **mandatory**.
 
 ### Expected File Sizes (After Compression)
 
-**Mobile (480p @ 500 Kbps):**
+**Mobile (720p @ 500 Kbps):**
 | Duration | Approx. Size |
 |----------|-------------|
 | 30 seconds | ~2-3 MB |
 | 1 minute | ~4-5 MB |
-| 2 minutes | ~8-10 MB |
 
 **Desktop (720p @ 1 Mbps):**
 | Duration | Approx. Size |
 |----------|-------------|
 | 30 seconds | ~4 MB |
 | 1 minute | ~8 MB |
-| 2 minutes | ~15 MB |
+
+**Note**: Maximum recording duration is 1 minute (60 seconds)
 
 ### Storage Usage (200 reports/month)
 
 **Current (photos only)**: ~2GB/month
 
 **With videos** (avg 5 rooms × 1 min each):
-- Videos per report: 5 × 8MB = 40MB
-- 200 reports = 8GB/month
-- **Total: 10GB/month** (still within R2 free tier!)
+- Videos per report: 5 × 6MB = 30MB (average between mobile/desktop)
+- 200 reports = 6GB/month
+- **Total: 8GB/month** (well within R2 free tier!)
 
 **R2 costs after free tier**:
 - $0.015/GB/month
@@ -336,8 +336,8 @@ Videos will fail to upload without CORS configured. This is **mandatory**.
 - [ ] Test on Android device
 - [ ] Test on iOS device (Safari)
 - [ ] Verify rear camera selection
-- [ ] Test auto-stop at 2 minutes
-- [ ] Test file size limit (try recording 3+ min)
+- [ ] Test auto-stop at 1 minute (60 seconds)
+- [ ] Verify 720p resolution on both mobile and desktop
 - [ ] Verify memory cleanup (record multiple videos)
 - [ ] Test in low-RAM conditions
 
@@ -351,7 +351,7 @@ Videos will fail to upload without CORS configured. This is **mandatory**.
 
 - Hold phone steady and move slowly
 - Show all areas of the room
-- Keep recording under 2 minutes
+- Recording limited to 1 minute maximum
 - Good lighting helps video quality
 - Point out any issues verbally
 
@@ -493,7 +493,8 @@ Videos will fail to upload without CORS configured. This is **mandatory**.
 
 ### Updates Required If:
 
-- Changing video duration limit (update component + docs)
+- Changing video duration limit (update MAX_DURATION constant in VideoRecorder.tsx + all docs)
+- Changing video resolution (update constraints in VideoRecorder.tsx + docs)
 - Changing file size limit (update storage service + docs)
 - Adding video editing features (new component needed)
 - Switching storage providers (update storage paths)

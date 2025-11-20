@@ -56,7 +56,7 @@ CYAss (Cover Your Assets) is a Progressive Web App designed for the South Africa
 ### Data Flow
 1. User captures inspection data offline
 2. Photos compressed and queued for upload
-3. **Optional**: Record 30s-2min video walkthrough per room
+3. **Optional**: Record up to 1-minute video walkthrough per room
 4. When online, sync to storage:
    - **R2 configured**: Upload photos/videos to Cloudflare R2 (production/alpha)
    - **R2 not configured**: Upload to Supabase Storage (local dev)
@@ -91,7 +91,7 @@ The project is in production-ready state with:
 - ✅ Core inspection functionality
 - ✅ Photo capture and storage (R2 + Supabase fallback)
 - ✅ Cloudflare R2 integration (alpha ready)
-- ✅ **Room video walkthroughs** (optional, 2-min max per room)
+- ✅ **Room video walkthroughs** (optional, 1-min max per room, 720p)
 - ✅ PDF report generation (with clickable video links)
 - ✅ User authentication
 - ✅ Property management
@@ -112,7 +112,7 @@ The project is in production-ready state with:
 - Must work on 3G connections
 - Must support older Android devices (Android 8+)
 - Must handle large photo sets (50+ per report)
-- **Video constraints**: 2 minutes max per room, 50MB file size limit
+- **Video constraints**: 1 minute max per room, 50MB file size limit, 720p resolution
 - PDF size limit of 10MB (excluding externally linked videos)
 - R2 free tier: 10GB storage, unlimited egress (sufficient for alpha with videos)
 - Storage path structure must remain consistent across R2 and Supabase
