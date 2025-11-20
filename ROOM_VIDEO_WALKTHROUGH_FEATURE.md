@@ -178,7 +178,7 @@ VALUES ('room-videos', 'room-videos', true);
 
 ### R2 (Production/Alpha)
 
-Videos automatically use R2 if configured. No additional setup needed.
+Videos use R2 if configured. **CRITICAL: CORS must be configured for video uploads to work.**
 
 **Environment variables** (already configured):
 - `VITE_R2_ACCOUNT_ID`
@@ -186,6 +186,52 @@ Videos automatically use R2 if configured. No additional setup needed.
 - `VITE_R2_SECRET_ACCESS_KEY`
 - `VITE_R2_BUCKET_NAME`
 - `VITE_R2_PUBLIC_URL`
+
+### ⚠️ **CRITICAL: R2 CORS Configuration (Required for Videos)**
+
+Videos will fail to upload without CORS configured. This is **mandatory**.
+
+**Steps**:
+
+1. **Go to R2 Dashboard**: https://dash.cloudflare.com/43bd52aabd1bab126c7c70aaac79dbca/r2/buckets/cyass-storage
+
+2. **Click on bucket** → **Settings** tab → **CORS Policy** section
+
+3. **Add this CORS configuration**:
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://cyass-demo.netlify.app",
+      "https://app.cyass.co.za",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ],
+    "ExposeHeaders": [
+      "ETag"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+4. **Save** and wait 30 seconds for propagation
+
+**Why This Is Required**:
+- Videos use `PUT` requests to upload to R2
+- Browser blocks cross-origin requests by default
+- Without CORS, you'll get: `"Access to fetch...blocked by CORS policy"`
+- Photos may work if CORS was configured earlier, but videos need explicit `PUT` method allowed
 
 ### Supabase (Local Development Fallback)
 
@@ -239,6 +285,7 @@ Videos automatically use R2 if configured. No additional setup needed.
 
 ### Production/Alpha (Netlify + R2)
 
+- [ ] **CRITICAL**: Configure R2 CORS policy (see Configuration section above)
 - [ ] Database migrations run in Supabase production
 - [ ] R2 environment variables configured in Netlify
 - [ ] Deploy to production

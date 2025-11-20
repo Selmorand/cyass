@@ -143,32 +143,48 @@ cyass-storage/
 
 ## Testing
 
+### ⚠️ CRITICAL: Configure CORS First
+
+**Before testing uploads**, configure CORS policy (see Troubleshooting section above).
+
+Without CORS:
+- ❌ Photo uploads will fail with CORS error
+- ❌ Video uploads will fail with CORS error
+- ❌ You'll see: `"Access to fetch...blocked by CORS policy"`
+
 ### Local Testing
 
 1. **Ensure R2 credentials in `.env.local`** (already done)
-2. **Restart dev server**:
+2. **Configure CORS in R2 bucket** (see Troubleshooting section)
+3. **Restart dev server**:
    ```bash
    cd app/client
    npm run dev
    ```
-3. **Check browser console** - Should see:
+4. **Check browser console** - Should see:
    ```
    Storage: Using Cloudflare R2
    ```
-4. **Create property and upload photo**
-5. **Verify in console**:
+5. **Create property and upload photo**
+6. **Verify in console**:
    ```
    R2: Upload successful, public URL: https://pub-fda1f49e641543818793e1203550252d.r2.dev/...
    ```
+7. **Test video upload** (if video feature enabled)
+8. **Check for CORS errors** - Should be none
 
 ### Production Testing (Netlify)
 
-1. **Add R2 env vars to Netlify** (see above)
-2. **Deploy to production** (push to GitHub main branch)
-3. **Open**: https://app.cyass.co.za
-4. **Check browser console**: Should show "Using Cloudflare R2"
-5. **Upload test photo**
-6. **Verify in R2 dashboard**: https://dash.cloudflare.com/43bd52aabd1bab126c7c70aaac79dbca/r2/buckets/cyass-storage
+1. **Configure CORS in R2 bucket** (CRITICAL - do this first!)
+2. **Add R2 env vars to Netlify** (see above)
+3. **Deploy to production** (push to GitHub main branch)
+4. **Open**: https://app.cyass.co.za (or https://cyass-demo.netlify.app)
+5. **Hard refresh**: `Ctrl+Shift+R` to clear cache
+6. **Check browser console**: Should show "Using Cloudflare R2"
+7. **Upload test photo**
+8. **Upload test video** (if video feature enabled)
+9. **Verify in R2 dashboard**: https://dash.cloudflare.com/43bd52aabd1bab126c7c70aaac79dbca/r2/buckets/cyass-storage
+10. **Check for CORS errors in console** - Should be none
 
 ---
 
@@ -220,28 +236,48 @@ cyass-storage/
 3. Verify token is scoped to `cyass-storage` bucket
 4. Regenerate token if needed
 
-### Issue: Images don't display (CORS error)
+### Issue: Images/Videos don't upload or display (CORS error)
 
 **Cause**: CORS policy not configured
 
 **Fix**:
 1. Go to bucket settings: https://dash.cloudflare.com/43bd52aabd1bab126c7c70aaac79dbca/r2/buckets/cyass-storage
-2. Click **"CORS Policy"** in left sidebar
-3. Add this policy:
+2. Click **"Settings"** tab → Scroll to **"CORS Policy"** section
+3. Click **"Add CORS Policy"** (or Edit if exists)
+4. Add this policy:
 ```json
 [
   {
     "AllowedOrigins": [
+      "https://cyass-demo.netlify.app",
       "https://app.cyass.co.za",
       "http://localhost:5173",
-      "http://localhost:5174"
+      "http://localhost:5174",
+      "http://localhost:5175"
     ],
-    "AllowedMethods": ["GET", "PUT", "POST"],
-    "AllowedHeaders": ["*"],
+    "AllowedMethods": [
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ],
+    "ExposeHeaders": [
+      "ETag"
+    ],
     "MaxAgeSeconds": 3600
   }
 ]
 ```
+
+**Important**:
+- `PUT` method is **required** for video uploads
+- `https://cyass-demo.netlify.app` is your Netlify domain
+- `https://app.cyass.co.za` is your custom domain
+- Include all localhost ports for development
+- `ExposeHeaders: ["ETag"]` allows AWS SDK to read upload confirmations
 
 ---
 

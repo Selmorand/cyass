@@ -173,24 +173,56 @@ VITE_R2_PUBLIC_URL=https://pub-1234567890ab.r2.dev
 3. Restart dev server: `Ctrl+C` then `npm run dev`
 4. For Netlify: Verify env vars in dashboard, trigger new deploy
 
-### CORS Errors
+### CORS Errors ⚠️ CRITICAL SETUP STEP
 
-**Issue**: Browser blocks R2 image loads with CORS error
+**Issue**: Browser blocks R2 uploads with CORS error
 
-**Fix**:
-1. Go to R2 bucket → **Settings** → **CORS Policy**
-2. Add CORS rule:
+**Error message**: `"Access to fetch...blocked by CORS policy: No 'Access-Control-Allow-Origin' header"`
+
+**This affects**:
+- ❌ Photo uploads
+- ❌ Video uploads
+- ❌ PDF uploads
+
+**Fix** (MANDATORY before using R2):
+1. Go to R2 bucket: https://dash.cloudflare.com/43bd52aabd1bab126c7c70aaac79dbca/r2/buckets/cyass-storage
+2. Click **Settings** tab
+3. Scroll to **CORS Policy** section
+4. Click **"Add CORS Policy"**
+5. Add this configuration:
 ```json
 [
   {
-    "AllowedOrigins": ["https://app.cyass.co.za", "http://localhost:5173", "http://localhost:5174"],
-    "AllowedMethods": ["GET", "PUT", "POST"],
-    "AllowedHeaders": ["*"],
+    "AllowedOrigins": [
+      "https://cyass-demo.netlify.app",
+      "https://app.cyass.co.za",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ],
+    "ExposeHeaders": [
+      "ETag"
+    ],
     "MaxAgeSeconds": 3600
   }
 ]
 ```
-3. Click **Save**
+6. Click **Save**
+7. Wait 30 seconds for propagation
+
+**Why this is required**:
+- Browser security blocks cross-origin requests by default
+- Videos use `PUT` method which must be explicitly allowed
+- Without CORS, ALL uploads will fail
 
 ### Upload Fails with 403 Forbidden
 
