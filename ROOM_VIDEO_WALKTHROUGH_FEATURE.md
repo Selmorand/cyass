@@ -15,11 +15,11 @@ Users can now record optional 30-second to 2-minute video walkthroughs for each 
 ✅ **Room-level videos** - Record one video per room (optional)
 ✅ **2-minute maximum** - Auto-stops at 2 minutes
 ✅ **50MB file size limit** - Client-side validation
-✅ **Memory-efficient** - Aggressive cleanup prevents mobile crashes
+✅ **Memory-efficient** - Aggressive compression and cleanup prevents mobile RAM issues
 ✅ **Dual storage** - Uses R2 (production) or Supabase (fallback)
 ✅ **PDF integration** - Clickable video links with duration
-✅ **In-app preview** - Review before uploading
-✅ **Mobile-optimized** - Compressed 720p @ 1Mbps bitrate
+✅ **Live preview** - See what you're recording in real-time
+✅ **Mobile-optimized** - Compressed 480p @ 500Kbps (mobile) or 720p @ 1Mbps (desktop)
 
 ---
 
@@ -30,13 +30,15 @@ Users can now record optional 30-second to 2-minute video walkthroughs for each 
 1. **Enter room inspection** (e.g., Kitchen)
 2. **See video card** at top of inspection page
 3. **Click "Start Recording"**
-   - Camera opens (rear camera on mobile)
+   - Browser requests camera permission (first time)
+   - Live preview appears showing camera feed
    - Timer displays: "⏺ REC 0:00 / 2:00"
-   - Pan around room steadily
+   - Pan around room steadily while watching preview
 4. **Click "Stop Recording"** (or auto-stops at 2 min)
+   - Recording stops, camera released (saves RAM)
 5. **Preview video** with playback controls
 6. **Save or discard**
-   - "Save Video" → Uploads to storage
+   - "Save Video" → Uploads to storage (compressed)
    - "Discard & Re-record" → Try again
 7. **Continue with item-by-item inspection**
 
@@ -94,28 +96,55 @@ ADD COLUMN IF NOT EXISTS video_size INTEGER;
 **File**: `app/client/src/components/VideoRecorder.tsx`
 
 **Key features**:
-- MediaRecorder API for video capture
-- Mobile device detection
+- MediaRecorder API with live preview during recording
+- Mobile device detection for optimized compression
 - Rear camera selection (`facingMode: 'environment'`)
-- 720p @ 24fps @ 1Mbps compression
-- Aggressive memory cleanup
+- Aggressive compression to prevent RAM issues:
+  - **Mobile**: 480p @ 500 Kbps video + 64 Kbps audio
+  - **Desktop**: 720p @ 1 Mbps video + 64 Kbps audio
+- Aggressive memory cleanup (releases camera immediately after recording)
 - Auto-stop at 2 minutes
-- In-app preview with playback
+- Live preview while recording + playback preview before upload
 - Upload progress indicator
 
-**Memory management**:
+**Compression settings (like photo compression)**:
+```typescript
+// Mobile-optimized constraints
+const constraints = {
+  video: {
+    facingMode: 'environment',
+    width: { ideal: isMobile ? 640 : 1280, max: isMobile ? 720 : 1280 },
+    height: { ideal: isMobile ? 480 : 720, max: isMobile ? 720 : 720 }
+  },
+  audio: true
+}
+
+// Low bitrate for small files
+const mediaRecorder = new MediaRecorder(stream, {
+  mimeType: 'video/webm;codecs=vp8',
+  videoBitsPerSecond: isMobile ? 500000 : 1000000, // 500 Kbps or 1 Mbps
+  audioBitsPerSecond: 64000 // 64 Kbps
+})
+```
+
+**Memory management (CRITICAL for mobile)**:
 ```typescript
 cleanup() {
-  // Stop camera tracks
-  stream.getTracks().forEach(track => track.stop())
+  // Stop timer
+  if (timerRef.current) clearInterval(timerRef.current)
 
   // Stop media recorder
-  mediaRecorder.stop()
+  if (mediaRecorderRef.current) mediaRecorderRef.current.stop()
 
-  // Revoke object URLs
+  // Stop all camera tracks (releases camera hardware)
+  if (streamRef.current) {
+    streamRef.current.getTracks().forEach(track => track.stop())
+  }
+
+  // Revoke object URLs (frees memory)
   URL.revokeObjectURL(previewUrl)
 
-  // Clear chunks
+  // Clear video chunks from RAM
   chunksRef.current = []
 }
 ```
@@ -243,13 +272,21 @@ Videos will fail to upload without CORS configured. This is **mandatory**.
 
 ## File Size & Cost Impact
 
-### Expected File Sizes
+### Expected File Sizes (After Compression)
 
+**Mobile (480p @ 500 Kbps):**
 | Duration | Approx. Size |
 |----------|-------------|
-| 30 seconds | ~4MB |
-| 1 minute | ~8MB |
-| 2 minutes | ~15MB |
+| 30 seconds | ~2-3 MB |
+| 1 minute | ~4-5 MB |
+| 2 minutes | ~8-10 MB |
+
+**Desktop (720p @ 1 Mbps):**
+| Duration | Approx. Size |
+|----------|-------------|
+| 30 seconds | ~4 MB |
+| 1 minute | ~8 MB |
+| 2 minutes | ~15 MB |
 
 ### Storage Usage (200 reports/month)
 
