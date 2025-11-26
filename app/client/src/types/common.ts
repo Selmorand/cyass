@@ -1,4 +1,4 @@
-export type UserRole = 'tenant' | 'landlord' | 'buyer' | 'seller' | 'agent'
+export type UserRole = 'tenant' | 'landlord' | 'buyer' | 'seller' | 'agent' | 'contractor'
 
 export type ConditionState = 'Good' | 'Fair' | 'Poor' | 'Urgent Repair' | 'N/A'
 
@@ -29,7 +29,8 @@ export const USER_ROLES = [
   { value: 'landlord' as const, label: 'Landlord' },
   { value: 'buyer' as const, label: 'Buyer' },
   { value: 'seller' as const, label: 'Seller' },
-  { value: 'agent' as const, label: 'Real Estate Agent' }
+  { value: 'agent' as const, label: 'Real Estate Agent' },
+  { value: 'contractor' as const, label: 'Contractor' }
 ] as const
 
 export const CONDITION_STATES = [

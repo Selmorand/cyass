@@ -6,6 +6,8 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 
 // Lazy load heavy components
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -16,6 +18,7 @@ const InspectionFlow = lazy(() => import('./pages/InspectionFlow'))
 const ReportSummary = lazy(() => import('./pages/ReportSummary'))
 const PropertyReports = lazy(() => import('./pages/PropertyReports'))
 const AllReports = lazy(() => import('./pages/AllReports'))
+const TestInspections = lazy(() => import('./pages/TestInspections'))
 
 // Loading fallback component
 const LoadingSpinner = () => (
@@ -35,6 +38,8 @@ function App() {
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           
           {/* Public Report View */}
           <Route
@@ -160,8 +165,19 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
-          
+
+          {/* Test Route for Role-Based Inspections */}
+          <Route
+            path="/test-inspections"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <TestInspections />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
           {/* Redirect root to login for now */}
           <Route path="/" element={<Navigate to="/login" replace />} />
           
