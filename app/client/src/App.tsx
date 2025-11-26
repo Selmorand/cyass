@@ -18,7 +18,6 @@ const InspectionFlow = lazy(() => import('./pages/InspectionFlow'))
 const ReportSummary = lazy(() => import('./pages/ReportSummary'))
 const PropertyReports = lazy(() => import('./pages/PropertyReports'))
 const AllReports = lazy(() => import('./pages/AllReports'))
-const TestInspections = lazy(() => import('./pages/TestInspections'))
 
 // Loading fallback component
 const LoadingSpinner = () => (
@@ -162,18 +161,6 @@ function App() {
                     <p className="text-gray-600">User settings - Coming soon!</p>
                   </div>
                 </Layout>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Test Route for Role-Based Inspections */}
-          <Route
-            path="/test-inspections"
-            element={
-              <ProtectedRoute>
-                <Suspense fallback={<LoadingSpinner />}>
-                  <TestInspections />
-                </Suspense>
               </ProtectedRoute>
             }
           />
