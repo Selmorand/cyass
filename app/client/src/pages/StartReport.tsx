@@ -32,10 +32,6 @@ export default function StartReport() {
   // Agent template selection - agents can choose to use any role's template
   const [selectedAgentTemplate, setSelectedAgentTemplate] = useState<UserRole | null>(null)
 
-  // Debug logging
-  console.log('StartReport - User role:', user?.role)
-  console.log('StartReport - Current step:', currentStep)
-
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -45,14 +41,12 @@ export default function StartReport() {
 
         // Set initial step based on user role
         if (user?.role === 'agent') {
-          console.log('User is agent - setting agent_template step')
           // If agent hasn't selected a template yet, stay on template selection
           if (!selectedAgentTemplate) {
             setCurrentStep('agent_template')
           }
           // Don't auto-select property for agents
         } else {
-          console.log('User is NOT agent - setting property step')
           // For non-agents, auto-select if only one property or propertyId provided
           if (propertyId) {
             const property = await getProperty(propertyId)
@@ -77,7 +71,6 @@ export default function StartReport() {
     }
 
     if (user) {
-      console.log('useEffect triggered - User loaded:', user.email, 'Role:', user.role)
       loadData()
     }
   }, [user, propertyId])
