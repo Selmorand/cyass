@@ -5,7 +5,8 @@ import { getProperties, getProperty } from '../services/properties'
 import { createReport } from '../services/reports'
 import RoomSelector from '../components/RoomSelector'
 import InspectionTemplate from '../components/InspectionTemplate'
-import type { Property, RoomType } from '../types'
+import type { Property, RoomType, UserRole } from '../types'
+import { AGENT_TEMPLATE_OPTIONS } from '../types/role-inspections'
 
 interface Room {
   id: string
@@ -22,10 +23,18 @@ export default function StartReport() {
   const [properties, setProperties] = useState<Property[]>([])
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
   const [selectedRooms, setSelectedRooms] = useState<Room[]>([])
-  const [currentStep, setCurrentStep] = useState<'property' | 'rooms' | 'templates'>('property')
+  // For agents, start with template selection; for others, start with property
+  // Initialize as null to wait for user to load
+  const [currentStep, setCurrentStep] = useState<'agent_template' | 'property' | 'rooms' | 'templates' | null>(null)
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Agent template selection - agents can choose to use any role's template
+  const [selectedAgentTemplate, setSelectedAgentTemplate] = useState<UserRole | null>(null)
+
+  // Debug logging
+  console.log('StartReport - User role:', user?.role)
+  console.log('StartReport - Current step:', currentStep)
 
   useEffect(() => {
     const loadData = async () => {
@@ -34,15 +43,31 @@ export default function StartReport() {
         const propertiesData = await getProperties()
         setProperties(propertiesData)
 
-        if (propertyId) {
-          const property = await getProperty(propertyId)
-          if (property) {
-            setSelectedProperty(property)
-            setCurrentStep('rooms')
+        // Set initial step based on user role
+        if (user?.role === 'agent') {
+          console.log('User is agent - setting agent_template step')
+          // If agent hasn't selected a template yet, stay on template selection
+          if (!selectedAgentTemplate) {
+            setCurrentStep('agent_template')
           }
-        } else if (propertiesData.length === 1) {
-          setSelectedProperty(propertiesData[0])
-          setCurrentStep('rooms')
+          // Don't auto-select property for agents
+        } else {
+          console.log('User is NOT agent - setting property step')
+          // For non-agents, auto-select if only one property or propertyId provided
+          if (propertyId) {
+            const property = await getProperty(propertyId)
+            if (property) {
+              setSelectedProperty(property)
+              setCurrentStep('rooms')
+            } else {
+              setCurrentStep('property')
+            }
+          } else if (propertiesData.length === 1) {
+            setSelectedProperty(propertiesData[0])
+            setCurrentStep('rooms')
+          } else {
+            setCurrentStep('property')
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load properties')
@@ -52,6 +77,7 @@ export default function StartReport() {
     }
 
     if (user) {
+      console.log('useEffect triggered - User loaded:', user.email, 'Role:', user.role)
       loadData()
     }
   }, [user, propertyId])
@@ -63,7 +89,7 @@ export default function StartReport() {
 
   const handleRoomsNext = async () => {
     if (selectedRooms.length > 0) {
-      // Skip template step and create report immediately
+      // Create report immediately (template already selected for agents)
       await handleCreateReport()
     }
   }
@@ -88,9 +114,13 @@ export default function StartReport() {
       
       console.log('Report created:', createdReport.id)
 
-      // Navigate directly to inspection flow with the room
+      // Navigate directly to inspection flow with the room and role info
       navigate(`/reports/${createdReport.id}/inspect`, {
-        state: { rooms: [room] }
+        state: {
+          rooms: [room],
+          inspectionRole: user?.role || 'tenant',
+          selectedAgentTemplate: selectedAgentTemplate
+        }
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create report')
@@ -112,9 +142,13 @@ export default function StartReport() {
       
       console.log('Report created:', createdReport.id)
 
-      // Navigate to inspection flow
+      // Navigate to inspection flow with role info
       navigate(`/reports/${createdReport.id}/inspect`, {
-        state: { rooms: selectedRooms }
+        state: {
+          rooms: selectedRooms,
+          inspectionRole: user?.role || 'tenant',
+          selectedAgentTemplate: selectedAgentTemplate
+        }
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create report')
@@ -122,7 +156,7 @@ export default function StartReport() {
     }
   }
 
-  if (loading) {
+  if (loading || !currentStep) {
     return (
       <div className="d-flex align-items-center justify-content-center py-5">
         <div className="spinner-border text-primary" role="status"></div>
@@ -164,35 +198,60 @@ export default function StartReport() {
 
         {/* Progress Steps */}
         <div className="mb-4">
-          <div className="d-flex align-items-center justify-content-center">
-            <div className={`d-flex align-items-center me-3 ${currentStep === 'property' ? 'text-primary' : currentStep === 'rooms' || currentStep === 'templates' ? 'text-success' : 'text-muted'}`}>
-              <span className="badge rounded-circle d-flex align-items-center justify-content-center me-2" style={{width: '2rem', height: '2rem', backgroundColor: currentStep === 'property' ? '#0c0e43' : currentStep === 'rooms' || currentStep === 'templates' ? '#88cb11' : '#6c757d'}}>
-                1
+          <div className="d-flex align-items-center justify-content-center flex-wrap gap-1">
+            {/* For Agents: Template is Step 1 */}
+            {user?.role === 'agent' && (
+              <>
+                <div className={`d-flex align-items-center me-2 ${currentStep === 'agent_template' ? 'text-primary' : currentStep !== 'agent_template' ? 'text-success' : 'text-muted'}`}>
+                  <span className="badge rounded-circle d-flex align-items-center justify-content-center me-1" style={{width: '1.75rem', height: '1.75rem', fontSize: '0.75rem', backgroundColor: currentStep === 'agent_template' ? '#0c0e43' : currentStep !== 'agent_template' ? '#88cb11' : '#6c757d'}}>
+                    1
+                  </span>
+                  <span className="small fw-medium">Report Type</span>
+                </div>
+                <div className="border-top mx-1" style={{width: '1rem', borderColor: currentStep !== 'agent_template' ? '#88cb11' : '#dee2e6'}}></div>
+              </>
+            )}
+
+            {/* Property Step */}
+            <div className={`d-flex align-items-center me-2 ${currentStep === 'property' ? 'text-primary' : (currentStep === 'rooms' || currentStep === 'templates') ? 'text-success' : 'text-muted'}`}>
+              <span className="badge rounded-circle d-flex align-items-center justify-content-center me-1" style={{width: '1.75rem', height: '1.75rem', fontSize: '0.75rem', backgroundColor: currentStep === 'property' ? '#0c0e43' : (currentStep === 'rooms' || currentStep === 'templates') ? '#88cb11' : '#6c757d'}}>
+                {user?.role === 'agent' ? '2' : '1'}
               </span>
               <span className="small fw-medium">Property</span>
             </div>
-            <div className="border-top mx-2" style={{width: '2rem', borderColor: currentStep === 'rooms' || currentStep === 'templates' ? '#88cb11' : '#dee2e6'}}></div>
-            <div className={`d-flex align-items-center me-3 ${currentStep === 'rooms' ? 'text-primary' : currentStep === 'templates' ? 'text-success' : 'text-muted'}`}>
-              <span className="badge rounded-circle d-flex align-items-center justify-content-center me-2" style={{width: '2rem', height: '2rem', backgroundColor: currentStep === 'rooms' ? '#0c0e43' : currentStep === 'templates' ? '#88cb11' : '#6c757d'}}>
-                2
+            <div className="border-top mx-1" style={{width: '1rem', borderColor: (currentStep === 'rooms' || currentStep === 'templates') ? '#88cb11' : '#dee2e6'}}></div>
+
+            {/* Rooms Step */}
+            <div className={`d-flex align-items-center me-2 ${currentStep === 'rooms' ? 'text-primary' : currentStep === 'templates' ? 'text-success' : 'text-muted'}`}>
+              <span className="badge rounded-circle d-flex align-items-center justify-content-center me-1" style={{width: '1.75rem', height: '1.75rem', fontSize: '0.75rem', backgroundColor: currentStep === 'rooms' ? '#0c0e43' : currentStep === 'templates' ? '#88cb11' : '#6c757d'}}>
+                {user?.role === 'agent' ? '3' : '2'}
               </span>
               <span className="small fw-medium">Rooms</span>
             </div>
-            <div className="border-top mx-2" style={{width: '2rem', borderColor: currentStep === 'templates' ? '#88cb11' : '#dee2e6'}}></div>
+            <div className="border-top mx-1" style={{width: '1rem', borderColor: currentStep === 'templates' ? '#88cb11' : '#dee2e6'}}></div>
+
+            {/* Inspect Step */}
             <div className={`d-flex align-items-center ${currentStep === 'templates' ? 'text-primary' : 'text-muted'}`}>
-              <span className="badge rounded-circle d-flex align-items-center justify-content-center me-2" style={{width: '2rem', height: '2rem', backgroundColor: currentStep === 'templates' ? '#0c0e43' : '#6c757d'}}>
-                3
+              <span className="badge rounded-circle d-flex align-items-center justify-content-center me-1" style={{width: '1.75rem', height: '1.75rem', fontSize: '0.75rem', backgroundColor: currentStep === 'templates' ? '#0c0e43' : '#6c757d'}}>
+                {user?.role === 'agent' ? '4' : '3'}
               </span>
-              <span className="small fw-medium">Review</span>
+              <span className="small fw-medium">Inspect</span>
             </div>
           </div>
         </div>
 
-        {/* Step 1: Property Selection */}
+        {/* Step 1: Property Selection (Step 2 for Agents) */}
         {currentStep === 'property' && (
           <div>
+            {/* Show selected template for agents */}
+            {user?.role === 'agent' && selectedAgentTemplate && (
+              <div className="alert alert-info mb-4">
+                <strong>Report Type:</strong> {AGENT_TEMPLATE_OPTIONS.find(o => o.value === selectedAgentTemplate)?.label}
+              </div>
+            )}
+
             <h2 className="text-lg font-medium text-gray-900 mb-6">Select Property</h2>
-            
+
             {properties.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
@@ -231,6 +290,18 @@ export default function StartReport() {
                 ))}
               </div>
             )}
+
+            {/* Back button for agents */}
+            {user?.role === 'agent' && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setCurrentStep('agent_template')}
+                  className="btn btn-outline-secondary"
+                >
+                  ← Back to Report Type
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -256,6 +327,57 @@ export default function StartReport() {
                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
               >
                 ← Back to Properties
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 1 for Agents: Template Selection */}
+        {currentStep === 'agent_template' && (
+          <div>
+            <div className="mb-4">
+              <h2 className="h4 fw-bold text-dark">What type of report are you creating?</h2>
+              <p className="text-muted">
+                Select the inspection template based on your client's needs.
+              </p>
+            </div>
+
+            <div className="row g-3">
+              {AGENT_TEMPLATE_OPTIONS.map((option) => (
+                <div key={option.value} className="col-12 col-md-6">
+                  <button
+                    onClick={() => setSelectedAgentTemplate(option.value)}
+                    className={`card w-100 text-start p-3 border-2 ${
+                      selectedAgentTemplate === option.value
+                        ? 'border-primary bg-primary bg-opacity-10'
+                        : 'border-light hover-shadow'
+                    }`}
+                    style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                  >
+                    <div className="d-flex align-items-start">
+                      <div className={`rounded-circle d-flex align-items-center justify-content-center me-3 ${
+                        selectedAgentTemplate === option.value ? 'bg-primary text-white' : 'bg-light text-muted'
+                      }`} style={{ width: '40px', height: '40px', flexShrink: 0 }}>
+                        {selectedAgentTemplate === option.value ? '✓' : '○'}
+                      </div>
+                      <div>
+                        <h5 className="fw-semibold mb-1">{option.label}</h5>
+                        <p className="text-muted small mb-0">{option.description}</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 d-flex justify-content-end">
+              <button
+                onClick={() => setCurrentStep('property')}
+                disabled={!selectedAgentTemplate}
+                className="btn btn-primary"
+                style={{ backgroundColor: '#0c0e43', borderColor: '#0c0e43' }}
+              >
+                Continue with {selectedAgentTemplate ? AGENT_TEMPLATE_OPTIONS.find(o => o.value === selectedAgentTemplate)?.label : 'Template'} →
               </button>
             </div>
           </div>
