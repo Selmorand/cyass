@@ -12,7 +12,19 @@ if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'your_supabase_project_u
   const mockModule = await import('./mock-supabase')
   supabase = mockModule.supabase
 } else {
-  supabase = createClient(supabaseUrl, supabaseAnonKey)
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      // CRITICAL: Use localStorage for session persistence in PWAs
+      // This ensures sessions persist across page navigation and async operations
+      storage: window.localStorage,
+      storageKey: 'cyass-auth-token',
+      // Auto-refresh tokens before expiry to prevent silent logouts
+      autoRefreshToken: true,
+      persistSession: true,
+      // Detect session from URL after email confirmations, etc.
+      detectSessionInUrl: true
+    }
+  })
 }
 
 export { supabase }
