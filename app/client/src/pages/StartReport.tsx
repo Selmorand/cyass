@@ -342,15 +342,29 @@ export default function StartReport() {
                     onClick={() => setSelectedAgentTemplate(option.value)}
                     className={`card w-100 text-start p-3 border-2 ${
                       selectedAgentTemplate === option.value
-                        ? 'border-primary bg-primary bg-opacity-10'
+                        ? ''
                         : 'border-light hover-shadow'
                     }`}
-                    style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                    style={{
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      ...(selectedAgentTemplate === option.value && {
+                        borderColor: '#88cb11',
+                        backgroundColor: '#88cb1115'
+                      })
+                    }}
                   >
                     <div className="d-flex align-items-start">
-                      <div className={`rounded-circle d-flex align-items-center justify-content-center me-3 ${
-                        selectedAgentTemplate === option.value ? 'bg-primary text-white' : 'bg-light text-muted'
-                      }`} style={{ width: '40px', height: '40px', flexShrink: 0 }}>
+                      <div
+                        className="rounded-circle d-flex align-items-center justify-content-center me-3"
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          flexShrink: 0,
+                          backgroundColor: selectedAgentTemplate === option.value ? '#88cb11' : '#f8f9fa',
+                          color: selectedAgentTemplate === option.value ? 'white' : '#6c757d'
+                        }}
+                      >
                         {selectedAgentTemplate === option.value ? '✓' : '○'}
                       </div>
                       <div>
@@ -368,7 +382,7 @@ export default function StartReport() {
                 onClick={() => setCurrentStep('property')}
                 disabled={!selectedAgentTemplate}
                 className="btn btn-primary"
-                style={{ backgroundColor: '#0c0e43', borderColor: '#0c0e43' }}
+                style={{ backgroundColor: '#88cb11', borderColor: '#88cb11' }}
               >
                 Continue with {selectedAgentTemplate ? AGENT_TEMPLATE_OPTIONS.find(o => o.value === selectedAgentTemplate)?.label : 'Template'} →
               </button>
