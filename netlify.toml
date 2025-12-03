@@ -1,11 +1,12 @@
 [build]
   base = "app/client"
-  command = "npm run build"
+  command = "cd ../netlify/functions && npm install && cd ../../app/client && npm run build"
   publish = "dist"
 
 [functions]
   directory = "../netlify/functions"
   node_bundler = "esbuild"
+  external_node_modules = ["@react-pdf/renderer", "canvas", "pdfkit"]
 
 [[redirects]]
   from = "/*"
