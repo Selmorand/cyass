@@ -1,0 +1,11 @@
+{
+  "name": "cyass-netlify-functions",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@react-pdf/renderer": "^4.3.0",
+    "node-fetch": "^3.3.2",
+    "qrcode-generator": "^2.0.4",
+    "react": "^19.1.1"
+  }
+}

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getReport, getPublicReport } from '../services/reports'
 import { getProperty, getPublicProperty } from '../services/properties'
-import { pdfService } from '../services/pdf.tsx'
 import { useAuth } from '../contexts/AuthContext'
 import { CONDITION_COLORS, DEFAULT_INSPECTION_CATEGORIES } from '../types'
 import { formatDate } from '../utils/formatters'
@@ -68,15 +67,42 @@ export default function ReportSummary({ isPublic = false }: ReportSummaryProps) 
 
     try {
       setGeneratingPDF(true)
-      await pdfService.downloadPDF(
-        report, 
-        property, 
-        user.role || 'tenant', 
-        user.email || 'User'
-      )
+      console.log('Calling Netlify Function for PDF generation...')
+
+      // Call Netlify Function for server-side PDF generation (bypasses CORS)
+      const response = await fetch('/.netlify/functions/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          report,
+          property,
+          creatorRole: user.role || 'tenant',
+          creatorName: user.full_name || user.email || 'User'
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || `Server error: ${response.statusText}`)
+      }
+
+      // Download the PDF
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${property.name.replace(/[^a-zA-Z0-9]/g, '_')}_Report_${report.id.substring(0, 8)}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      console.log('PDF downloaded successfully')
     } catch (error) {
       console.error('PDF generation failed:', error)
-      showError('Failed to generate PDF. Please try again.')
+      showError(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setGeneratingPDF(false)
     }
