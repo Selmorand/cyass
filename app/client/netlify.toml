@@ -1,9 +1,9 @@
 [build]
   publish = "dist"
-  command = "cd ../netlify/functions && npm install && cd ../../app/client && npx vite build --mode production"
+  command = "cd ../../netlify/functions && npm install && cd ../../app/client && npx vite build --mode production"
 
 [functions]
-  directory = "../netlify/functions"
+  directory = "../../netlify/functions"
   node_bundler = "esbuild"
   external_node_modules = ["@react-pdf/renderer", "canvas", "pdfkit"]
 
