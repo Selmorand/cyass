@@ -311,35 +311,24 @@ export const reportsService = {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('User not authenticated')
 
-    // Delete all inspection items first (cascade should handle this, but being explicit)
-    const { data: rooms } = await supabase
-      .from('rooms')
-      .select('id')
-      .eq('report_id', reportId)
-
-    if (rooms) {
-      for (const room of rooms) {
-        await supabase
-          .from('inspection_items')
-          .delete()
-          .eq('room_id', room.id)
-      }
-    }
-
-    // Delete all rooms
-    await supabase
-      .from('rooms')
-      .delete()
-      .eq('report_id', reportId)
-
-    // Delete the report
+    // Delete the report - CASCADE will automatically delete rooms and inspection_items
     const { error } = await supabase
       .from('reports')
       .delete()
       .eq('id', reportId)
       .eq('user_id', user.id)
 
-    if (error) throw error
+    if (error) {
+      console.error('Error deleting report:', error)
+      throw error
+    }
+
+    // Optional: Log activity (non-critical)
+    try {
+      await logActivity('report_deleted', { report_id: reportId })
+    } catch (logError) {
+      console.warn('Failed to log delete activity (non-critical):', logError)
+    }
   },
 
   mapDatabaseRowToReport(row: any, rooms: any[]): Report {
