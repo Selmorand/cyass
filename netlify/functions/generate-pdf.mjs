@@ -406,7 +406,6 @@ function PDFReport({ report, property, creatorRole, creatorName, qrCodeDataURL }
             )
           })  // Close the items map function
         )
-        )
       ),
 
       // Footer
