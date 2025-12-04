@@ -4,8 +4,10 @@ import { getReports, deleteReport } from '../services/reports'
 import { getProperties } from '../services/properties'
 import type { Report, Property } from '../types'
 import { useNotification } from '../contexts/NotificationContext'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function AllReports() {
+  const { user } = useAuth()
   const [reports, setReports] = useState<Report[]>([])
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
@@ -111,6 +113,8 @@ export default function AllReports() {
           <div>
             <h1 className="h2 fw-bold text-dark">All Reports</h1>
             <p className="text-muted mb-0">Your inspection reports across all properties</p>
+            {/* Temporary debug info */}
+            <p className="small text-danger mt-1">DEBUG: Current user ID: {user?.id || 'Not logged in'}</p>
           </div>
           <Link
             to="/reports/new"
