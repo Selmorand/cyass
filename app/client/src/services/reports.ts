@@ -311,8 +311,6 @@ export const reportsService = {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('User not authenticated')
 
-    console.log('Attempting to delete report:', reportId, 'for user:', user.id)
-
     // Verify the report belongs to this user first
     const { data: reportCheck } = await supabase
       .from('reports')
@@ -328,15 +326,11 @@ export const reportsService = {
       throw new Error('You do not have permission to delete this report')
     }
 
-    console.log('Report ownership verified, proceeding with deletion')
-
     // Step 1: Get all rooms for this report
     const { data: rooms } = await supabase
       .from('rooms')
       .select('id')
       .eq('report_id', reportId)
-
-    console.log('Found rooms:', rooms?.length || 0)
 
     // Step 2: Delete all inspection items for each room
     if (rooms && rooms.length > 0) {
@@ -371,19 +365,15 @@ export const reportsService = {
       .eq('user_id', user.id)
       .select()
 
-    console.log('Report delete result:', { deletedReport, reportError })
-
     if (reportError) {
       console.error('Error deleting report:', reportError)
       throw new Error(`Failed to delete report: ${reportError.message}`)
     }
 
     if (!deletedReport || deletedReport.length === 0) {
-      console.error('CRITICAL: Report delete returned success but deleted 0 rows!')
+      console.error('Report delete returned success but deleted 0 rows - check RLS policies')
       throw new Error('Failed to delete report - 0 rows affected')
     }
-
-    console.log('Report deleted successfully:', deletedReport)
 
     // Optional: Log activity (non-critical)
     try {

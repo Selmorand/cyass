@@ -113,8 +113,6 @@ export default function AllReports() {
           <div>
             <h1 className="h2 fw-bold text-dark">All Reports</h1>
             <p className="text-muted mb-0">Your inspection reports across all properties</p>
-            {/* Temporary debug info */}
-            <p className="small text-danger mt-1">DEBUG: Current user ID: {user?.id || 'Not logged in'}</p>
           </div>
           <Link
             to="/reports/new"
