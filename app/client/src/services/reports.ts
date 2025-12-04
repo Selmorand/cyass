@@ -364,18 +364,26 @@ export const reportsService = {
     }
 
     // Step 4: Finally delete the report
-    const { error: reportError } = await supabase
+    const { data: deletedReport, error: reportError } = await supabase
       .from('reports')
       .delete()
       .eq('id', reportId)
       .eq('user_id', user.id)
+      .select()
+
+    console.log('Report delete result:', { deletedReport, reportError })
 
     if (reportError) {
       console.error('Error deleting report:', reportError)
       throw new Error(`Failed to delete report: ${reportError.message}`)
     }
 
-    console.log('Report deleted successfully')
+    if (!deletedReport || deletedReport.length === 0) {
+      console.error('CRITICAL: Report delete returned success but deleted 0 rows!')
+      throw new Error('Failed to delete report - 0 rows affected')
+    }
+
+    console.log('Report deleted successfully:', deletedReport)
 
     // Optional: Log activity (non-critical)
     try {
