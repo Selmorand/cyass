@@ -311,17 +311,30 @@ export const reportsService = {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('User not authenticated')
 
+    console.log('Attempting to delete report:', reportId, 'for user:', user.id)
+
     // Delete the report - CASCADE will automatically delete rooms and inspection_items
-    const { error } = await supabase
+    const { data, error, count } = await supabase
       .from('reports')
       .delete()
       .eq('id', reportId)
       .eq('user_id', user.id)
+      .select()  // Add select to get deleted rows
+
+    console.log('Delete result:', { data, error, count })
 
     if (error) {
-      console.error('Error deleting report:', error)
-      throw error
+      console.error('Supabase error deleting report:', error)
+      throw new Error(`Failed to delete report: ${error.message}`)
     }
+
+    // Check if anything was actually deleted
+    if (!data || data.length === 0) {
+      console.error('No rows deleted. Report may not exist or user does not have permission.')
+      throw new Error('Report not found or you do not have permission to delete it')
+    }
+
+    console.log('Report deleted successfully:', data)
 
     // Optional: Log activity (non-critical)
     try {
