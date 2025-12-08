@@ -173,6 +173,15 @@ export default function VideoRecorder({
 
         const blob = new Blob(chunksRef.current, { type: mimeType })
 
+        /**
+         * ⚠️ CRITICAL - DO NOT REMOVE THIS LINE ⚠️
+         * Clears video chunks immediately after blob creation to free memory.
+         * Without this, video data exists in BOTH chunksRef AND blob = 2x memory usage.
+         * This causes PWA crashes on mobile devices (Samsung Galaxy A73 tested).
+         * See: /.claude/protected-code.md
+         */
+        chunksRef.current = []
+
         console.log('VideoRecorder: Video blob created:', {
           size: `${(blob.size / 1024 / 1024).toFixed(2)}MB`,
           type: blob.type

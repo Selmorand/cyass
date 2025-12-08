@@ -173,15 +173,196 @@ if (accuracy && accuracy > 200) {
 - Mobile users get precise GPS guidance for accurate property location
 - Error messages provide clear instructions for users to enable precise location
 
+### 4. Server-Side PDF Generation (Netlify Function)
+**Files**:
+- `/netlify/functions/generate-pdf.mjs` - Server-side PDF generator
+- `/app/client/netlify.toml` - Netlify configuration
+- `/app/client/src/pages/ReportSummary.tsx` - Client-side caller
+
+**Protected Architecture**:
+```javascript
+// ReportSummary.tsx - Calls Netlify Function
+const response = await fetch('/.netlify/functions/generate-pdf', {
+  method: 'POST',
+  body: JSON.stringify({ report, property, creatorRole, creatorName })
+})
+
+// generate-pdf.mjs - Server-side processing
+// 1. Fetches images from R2 (no CORS!)
+// 2. Converts to base64 data URLs
+// 3. Generates PDF with embedded images
+// 4. Returns PDF to client
+```
+
+**Why Protected**:
+- **CRITICAL FIX**: R2 public domains (`pub-*.r2.dev`) don't support CORS headers
+- Client-side PDF generation was blocked by browser CORS policy
+- Server-side fetching bypasses CORS entirely
+- Must NOT revert to client-side PDF generation
+- Netlify Function path (`../../netlify/functions`) must remain correct
+- Function dependencies must be installed during build
+
+**History**:
+- Issue discovered: December 2025
+- Multiple attempts to fix CORS configuration failed
+- Root cause: R2 public domains intentionally don't support CORS
+- Solution: Server-side PDF generation via Netlify Functions
+
+### 5. Report Deletion with Manual Cascade
+**File**: `/app/client/src/services/reports.ts`
+**Function**: `deleteReport()`
+
+**Protected Implementation**:
+```javascript
+async deleteReport(reportId: string): Promise<void> {
+  // Step 1: Verify ownership
+  const { data: reportCheck } = await supabase
+    .from('reports')
+    .select('id, user_id')
+    .eq('id', reportId)
+    .single()
+
+  if (reportCheck.user_id !== user.id) {
+    throw new Error('You do not have permission to delete this report')
+  }
+
+  // Step 2: Delete inspection_items (for each room)
+  const { data: rooms } = await supabase
+    .from('rooms')
+    .select('id')
+    .eq('report_id', reportId)
+
+  if (rooms && rooms.length > 0) {
+    for (const room of rooms) {
+      await supabase
+        .from('inspection_items')
+        .delete()
+        .eq('room_id', room.id)
+    }
+  }
+
+  // Step 3: Delete rooms
+  await supabase
+    .from('rooms')
+    .delete()
+    .eq('report_id', reportId)
+
+  // Step 4: Delete report and verify rows were deleted
+  const { data: deletedReport } = await supabase
+    .from('reports')
+    .delete()
+    .eq('id', reportId)
+    .eq('user_id', user.id)
+    .select()
+
+  if (!deletedReport || deletedReport.length === 0) {
+    throw new Error('Failed to delete report - 0 rows affected')
+  }
+}
+```
+
+**Why Protected**:
+- **CRITICAL**: Database CASCADE DELETE conflicts with RLS policies
+- Manual deletion ensures each DELETE is evaluated independently by RLS
+- Must delete in order: inspection_items → rooms → report
+- Must verify rows were actually deleted (not just error-free)
+- Prevents silent deletion failures
+
+**History**:
+- Issue discovered: December 2025
+- Initial attempt to use CASCADE DELETE failed silently
+- RLS policies on child tables blocked cascade deletion
+- Solution: Manual cascade with verification
+
+### 6. Video Recorder Memory Management
+**File**: `/app/client/src/components/VideoRecorder.tsx`
+**Lines**: 174-183
+
+**Protected Implementation**:
+```javascript
+// Handle recording stop
+mediaRecorder.onstop = () => {
+  const blob = new Blob(chunksRef.current, { type: mimeType })
+
+  /**
+   * ⚠️ CRITICAL - DO NOT REMOVE THIS LINE ⚠️
+   * Clears video chunks immediately after blob creation to free memory.
+   * Without this, video data exists in BOTH chunksRef AND blob = 2x memory usage.
+   * This causes PWA crashes on mobile devices (Samsung Galaxy A73 tested).
+   */
+  chunksRef.current = []
+
+  // ... rest of handler
+}
+```
+
+**Why Protected**:
+- After creating the blob, chunks are no longer needed
+- Without this line, video data exists in TWO places (chunks + blob)
+- This doubles memory usage (e.g., 3MB video = 6MB in memory)
+- Causes PWA to crash/restart on mobile devices during photo capture
+- **Tested on Samsung Galaxy A73 5G** - confirmed fix prevents restarts
+
+**History**:
+- Issue discovered: December 2025
+- Symptom: PWA restart after recording video + taking 1-2 photos
+- Root cause: Video chunks not cleared after blob creation
+- Solution: Clear `chunksRef.current = []` immediately after `new Blob()`
+
 ## Database Schema Protection
 
 ### Critical Tables and RLS Policies
 **Location**: `/database/` folder
 
+**CRITICAL - RLS DELETE Policies Must Exist**:
+
+The following policies are REQUIRED and must exist in production:
+
+```sql
+-- MUST EXIST: Reports DELETE policy
+CREATE POLICY "Users can delete own reports" ON reports
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- MUST EXIST: Rooms DELETE policy
+CREATE POLICY "rooms_delete" ON rooms
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM reports
+      WHERE reports.id = rooms.report_id
+      AND reports.user_id = auth.uid()
+    )
+  );
+
+-- MUST EXIST: Inspection Items DELETE policy
+CREATE POLICY "inspection_items_delete" ON inspection_items
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1
+      FROM rooms
+      JOIN reports ON reports.id = rooms.report_id
+      WHERE rooms.id = inspection_items.room_id
+      AND reports.user_id = auth.uid()
+    )
+  );
+```
+
+**Verification**:
+After any database reset or migration, verify these policies exist:
+```sql
+SELECT * FROM pg_policies WHERE tablename IN ('reports', 'rooms', 'inspection_items') AND cmd = 'DELETE';
+```
+
+**Why Protected**:
+- Missing DELETE policies cause silent deletion failures
+- RLS enabled without policies blocks ALL deletes (even with no error)
+- These policies were missing in production, causing the deletion bug
+- Must be included in all database setups
+
 Do not modify:
 - User isolation via RLS
 - Storage bucket policies
-- Activity tracking schema
+- Activity tracking schema (if exists)
+- DELETE policies (unless adding additional security)
 
 ## Override Permission
 
