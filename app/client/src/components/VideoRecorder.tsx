@@ -148,13 +148,13 @@ export default function VideoRecorder({
 
       console.log('VideoRecorder: Using mimeType:', mimeType)
 
-      // Aggressive compression for mobile - 500 Kbps for mobile, 1 Mbps for desktop
-      const bitrate = isMobile ? 500000 : 1000000
+      // Balanced quality - good visuals while keeping file sizes reasonable
+      const bitrate = isMobile ? 1500000 : 2500000 // 1.5 Mbps mobile, 2.5 Mbps desktop
 
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType,
-        videoBitsPerSecond: bitrate, // Lower bitrate = smaller files
-        audioBitsPerSecond: 64000    // Low audio bitrate
+        videoBitsPerSecond: bitrate, // Better quality video
+        audioBitsPerSecond: 128000   // Clear audio (128 Kbps)
       })
 
       mediaRecorderRef.current = mediaRecorder
@@ -425,7 +425,7 @@ export default function VideoRecorder({
             <div className="alert alert-light mt-3 mb-0 small">
               <strong>Tips:</strong>
               <ul className="mb-0 mt-1 ps-3">
-                <li>Video is compressed to {isMobile ? '500 Kbps' : '1 Mbps'} to save RAM</li>
+                <li>Video quality: {isMobile ? '1.5 Mbps' : '2.5 Mbps'} for clear footage</li>
                 <li>Hold phone steady and move slowly</li>
                 <li>Show all areas of the room</li>
                 <li>Maximum 1 minute recording time</li>

@@ -158,16 +158,16 @@ export const r2StorageService = {
    * - Optimized for low-RAM devices
    *
    * @param file - The image file to compress
-   * @param maxWidth - Maximum width (default: 1200px, 800px on mobile)
-   * @param quality - JPEG quality (default: 0.8, 0.7 on mobile)
+   * @param maxWidth - Maximum width (default: 1024px)
+   * @param quality - JPEG quality (default: 0.85, 0.82 on mobile)
    */
   async compressImage(file: File, maxWidth?: number, quality?: number): Promise<File> {
     // Detect mobile device for more aggressive compression
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
-    // Mobile-optimized defaults to prevent memory issues
-    const targetMaxWidth = maxWidth ?? (isMobile ? 800 : 1200)
-    const targetQuality = quality ?? (isMobile ? 0.7 : 0.8)
+    // Balanced quality - good detail while managing file sizes
+    const targetMaxWidth = maxWidth ?? 1024
+    const targetQuality = quality ?? (isMobile ? 0.82 : 0.85)
 
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas')

@@ -192,7 +192,7 @@ export const storageService = {
 
     // 1024px max width for both mobile and desktop
     const targetMaxWidth = maxWidth ?? 1024
-    const targetQuality = quality ?? (isMobile ? 0.7 : 0.8)
+    const targetQuality = quality ?? (isMobile ? 0.82 : 0.85)
 
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas')
