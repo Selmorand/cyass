@@ -29,10 +29,11 @@ export interface Report extends BaseEntity {
   property_id: string
   title: string
   rooms: Room[]
-  status: 'draft' | 'completed' | 'paid'
+  status: 'draft' | 'completed' | 'finalized' | 'paid'
   pdf_url?: string
   payment_reference?: string
   generated_at?: string
+  finalized_at?: string
 }
 
 export interface CreateReportInput {
@@ -43,9 +44,10 @@ export interface CreateReportInput {
 export interface UpdateReportInput {
   title?: string
   rooms?: Room[]
-  status?: 'draft' | 'completed' | 'paid'
+  status?: 'draft' | 'completed' | 'finalized' | 'paid'
   pdf_url?: string
   payment_reference?: string
+  finalized_at?: string
 }
 
 export interface InspectionItemInput {

@@ -146,9 +146,14 @@ export const reportsService = {
     if (input.status !== undefined) updateData.status = input.status
     if (input.pdf_url !== undefined) updateData.pdf_url = input.pdf_url
     if (input.payment_reference !== undefined) updateData.payment_reference = input.payment_reference
+    if (input.finalized_at !== undefined) updateData.finalized_at = input.finalized_at
 
     if (input.status === 'completed' && !updateData.generated_at) {
       updateData.generated_at = new Date().toISOString()
+    }
+
+    if (input.status === 'finalized' && !updateData.finalized_at) {
+      updateData.finalized_at = new Date().toISOString()
     }
 
     const { data, error } = await supabase
@@ -412,8 +417,57 @@ export const reportsService = {
       status: row.status,
       pdf_url: row.pdf_url || undefined,
       payment_reference: row.payment_reference || undefined,
-      generated_at: row.generated_at || undefined
+      generated_at: row.generated_at || undefined,
+      finalized_at: row.finalized_at || undefined
     }
+  },
+
+  /**
+   * Finalize a report - locks it from further editing
+   * @param reportId - The ID of the report to finalize
+   * @returns The updated report
+   */
+  async finalizeReport(reportId: string): Promise<Report> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    // First verify the report exists and belongs to this user
+    const report = await this.getReport(reportId)
+    if (!report) {
+      throw new Error('Report not found')
+    }
+
+    if (report.status === 'finalized') {
+      throw new Error('Report is already finalized')
+    }
+
+    // Check that all rooms have at least one inspection item
+    const incompleteRooms = report.rooms.filter(room => !room.items || room.items.length === 0)
+    if (incompleteRooms.length > 0) {
+      throw new Error(`Cannot finalize: ${incompleteRooms.length} room(s) have no inspection items`)
+    }
+
+    // Finalize the report
+    const updatedReport = await this.updateReport(reportId, {
+      status: 'finalized',
+      finalized_at: new Date().toISOString()
+    })
+
+    // Log activity
+    logActivity('report_finalized', {
+      report_id: reportId,
+      rooms_count: report.rooms.length,
+      items_count: report.rooms.reduce((total, room) => total + (room.items?.length || 0), 0)
+    })
+
+    return updatedReport
+  },
+
+  /**
+   * Check if a report is finalized (read-only)
+   */
+  isFinalized(report: Report): boolean {
+    return report.status === 'finalized'
   }
 }
 
@@ -423,3 +477,5 @@ export const getReport = (id: string) => reportsService.getReport(id)
 export const getPublicReport = (id: string) => reportsService.getPublicReport(id)
 export const updateReport = (id: string, input: UpdateReportInput) => reportsService.updateReport(id, input)
 export const deleteReport = (id: string) => reportsService.deleteReport(id)
+export const finalizeReport = (id: string) => reportsService.finalizeReport(id)
+export const isReportFinalized = (report: Report) => reportsService.isFinalized(report)

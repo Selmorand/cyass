@@ -1,0 +1,252 @@
+================================================================================
+                         CYAss - System Requirements
+================================================================================
+
+Thank you for choosing CYAss for your property inspection reports. To ensure
+the best experience, please review these requirements before getting started.
+
+================================================================================
+                           MINIMUM DEVICE REQUIREMENTS
+================================================================================
+
+  Component          Minimum Requirement
+  -----------------  --------------------------------------------------
+  Operating System   Android 10+ or iOS 14+
+  RAM                4GB (6GB+ recommended)
+  Storage            64GB (for photos/videos before upload)
+  Browser            Chrome 90+ (Android) or Safari 14+ (iPhone)
+  Internet           Stable connection required for uploads
+  Camera             Rear camera with autofocus
+                     Optical Image Stabilization (OIS) recommended for video
+
+================================================================================
+                            RECOMMENDED DEVICES
+================================================================================
+
+SAMSUNG (Recommended)
+---------------------
+  - Galaxy A54, A34, A14 (2023+)
+  - Galaxy S21 and newer
+  - Any Samsung device from 2020 onwards
+
+iPHONE
+------
+  - iPhone XR or newer (2018+)
+  - iOS 14 or later required
+  - Add to Home Screen for best experience (see below)
+
+HONOR
+-----
+  - Honor 50 series or newer
+  - Honor X8/X9 series
+  - 4GB+ RAM required
+
+XIAOMI / REDMI
+--------------
+  - Redmi Note 11/12/13 series
+  - Xiaomi 12/13 series
+  - MIUI 12+ recommended
+
+OPPO
+----
+  - OPPO A series (2021+)
+  - OPPO Reno series
+  - ColorOS 11+ recommended
+
+HUAWEI (Limited Support)
+------------------------
+  - Models from 2019 and earlier work normally
+  - Newer models (2020+) lack Google Services
+  - PWA still works but some features may be limited
+  - Use the built-in browser or install Chrome APK
+
+NOKIA / REALME / VIVO
+---------------------
+  - 2020+ models with 4GB+ RAM
+  - Android 10+ required
+
+================================================================================
+                            BROWSER REQUIREMENTS
+================================================================================
+
+ANDROID DEVICES
+---------------
+  Recommended: Google Chrome (version 90+)
+
+  - Chrome provides the best PWA experience
+  - Accept the "Install App" or "Add to Home Screen" prompt when it appears
+  - Samsung Internet browser also works well
+
+iPHONE / iPAD
+-------------
+  Required: Safari (built-in browser)
+
+  IMPORTANT: You MUST add CYAss to your Home Screen for full functionality!
+
+  Without adding to Home Screen:
+    - You may be logged out every 7 days
+    - Cached data may be cleared by the system
+    - No offline access to saved reports
+
+  How to Add to Home Screen (iPhone):
+    1. Open CYAss in Safari
+    2. Tap the Share button (square with arrow)
+    3. Scroll down and tap "Add to Home Screen"
+    4. Tap "Add" to confirm
+
+NOT RECOMMENDED
+---------------
+  - Firefox (limited PWA support)
+  - Opera (untested)
+  - In-app browsers (Facebook, WhatsApp, Instagram)
+
+================================================================================
+                          IMPORTANT: IN-APP BROWSERS
+================================================================================
+
+  DO NOT open CYAss from links inside these apps:
+
+    - WhatsApp
+    - Facebook / Facebook Messenger
+    - Instagram
+    - LinkedIn
+    - Twitter/X
+    - Email apps
+
+  These apps use built-in browsers with limited functionality:
+    - Camera access may be blocked
+    - Login sessions may not save
+    - PWA features are disabled
+
+  SOLUTION: Copy the CYAss link and paste it into Chrome or Safari directly.
+
+================================================================================
+                         PWA INSTALLATION (RECOMMENDED)
+================================================================================
+
+CYAss works best when installed as a Progressive Web App (PWA).
+
+Benefits of Installing:
+  - App icon on your home screen
+  - Faster loading times
+  - Better session persistence (stay logged in)
+  - Full-screen experience (no browser bars)
+  - Reliable camera and storage access
+
+HOW TO INSTALL:
+
+  Android (Chrome):
+    1. Open CYAss website in Chrome
+    2. Look for "Install App" banner or menu option
+    3. Alternatively: Menu (3 dots) > "Add to Home Screen"
+    4. Tap "Install" or "Add"
+
+  iPhone (Safari):
+    1. Open CYAss website in Safari (not Chrome!)
+    2. Tap the Share button (square with up arrow)
+    3. Scroll down, tap "Add to Home Screen"
+    4. Tap "Add" in the top right
+
+================================================================================
+                              VIDEO RECORDING
+================================================================================
+
+For best video quality during room walkthroughs:
+
+  - Use a device with Optical Image Stabilization (OIS)
+  - Hold the phone steady with both hands
+  - Move slowly and smoothly
+  - Ensure good lighting
+  - Maximum recording time: 1 minute per room
+  - Maximum file size: 50MB per video
+
+Devices WITHOUT OIS may produce shaky/jittery video. This is a hardware
+limitation, not an app issue.
+
+================================================================================
+                              PHOTO CAPTURE
+================================================================================
+
+Tips for best photo quality:
+
+  - Ensure adequate lighting
+  - Hold steady when capturing
+  - Photos are automatically compressed for fast uploads
+  - Multiple photos can be taken per inspection item
+  - Rear camera is used by default
+
+================================================================================
+                            KNOWN LIMITATIONS
+================================================================================
+
+iPHONE / iPAD:
+  - Must use Safari browser (Chrome on iOS has limited PWA support)
+  - Must add to Home Screen for persistent login
+  - No push notifications (Apple restriction)
+  - Background uploads not supported
+
+OLDER DEVICES (Pre-2020):
+  - May experience slower performance
+  - Video recording may cause memory issues
+  - Consider using photo-only inspections
+
+HUAWEI (2020+ models):
+  - Google Chrome may not be available
+  - Use Huawei Browser or install Chrome APK
+  - Some features may be limited
+
+LOW STORAGE:
+  - Ensure at least 2GB free space before starting an inspection
+  - Photos and videos are cached before upload
+  - Clear browser cache if experiencing issues
+
+================================================================================
+                              INTERNET REQUIREMENTS
+================================================================================
+
+  - Stable internet connection required for:
+    - Login and authentication
+    - Uploading photos and videos
+    - Generating PDF reports
+    - Syncing report data
+
+  - Recommended: WiFi or strong 4G/LTE signal
+  - Avoid starting inspections with poor connectivity
+  - All uploads are compressed to minimize data usage
+
+================================================================================
+                              TROUBLESHOOTING
+================================================================================
+
+App keeps logging me out:
+  - Add the app to your Home Screen (especially iPhone)
+  - Don't clear browser data/cookies
+  - Ensure you're not using private/incognito mode
+
+Camera won't open:
+  - Check browser permissions for camera access
+  - Don't open via WhatsApp/Facebook links
+  - Try closing and reopening the app
+
+Photos/videos not uploading:
+  - Check your internet connection
+  - Ensure you have storage space available
+  - Try on WiFi if mobile data is slow
+
+App is slow or crashing:
+  - Close other apps to free memory
+  - Restart your device
+  - Ensure you meet minimum requirements
+  - Update your browser to the latest version
+
+================================================================================
+                                SUPPORT
+================================================================================
+
+For technical support or questions, please contact:
+
+  [Your support email/contact here]
+
+================================================================================
+                          Last Updated: December 2025
+================================================================================

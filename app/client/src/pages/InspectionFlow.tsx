@@ -126,6 +126,14 @@ export default function InspectionFlow() {
         if (!reportData) {
           throw new Error('Report not found')
         }
+
+        // Check if report is finalized - redirect to summary if trying to edit
+        if (reportData.status === 'finalized') {
+          showWarning('This report has been finalized and cannot be edited.')
+          navigate(`/reports/${reportId}/summary`)
+          return
+        }
+
         setReport(reportData)
         
         const propertyData = await getProperty(reportData.property_id)

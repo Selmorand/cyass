@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getReport, getPublicReport } from '../services/reports'
+import { getReport, getPublicReport, finalizeReport } from '../services/reports'
 import { getProperty, getPublicProperty } from '../services/properties'
 import { useAuth } from '../contexts/AuthContext'
 import { CONDITION_COLORS, DEFAULT_INSPECTION_CATEGORIES } from '../types'
@@ -17,11 +17,12 @@ export default function ReportSummary({ isPublic = false }: ReportSummaryProps) 
   const { reportId } = useParams<{ reportId: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { showError } = useNotification()
+  const { showError, showSuccess } = useNotification()
   const [report, setReport] = useState<Report | null>(null)
   const [property, setProperty] = useState<Property | null>(null)
   const [loading, setLoading] = useState(true)
   const [generatingPDF, setGeneratingPDF] = useState(false)
+  const [finalizing, setFinalizing] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -108,6 +109,34 @@ export default function ReportSummary({ isPublic = false }: ReportSummaryProps) 
     }
   }
 
+  const handleFinalize = async () => {
+    if (!report || !reportId) return
+
+    // Confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to finalize this report?\n\n' +
+      'Once finalized, this report cannot be edited or deleted.\n\n' +
+      'This action cannot be undone.'
+    )
+
+    if (!confirmed) return
+
+    try {
+      setFinalizing(true)
+      const updatedReport = await finalizeReport(reportId)
+      setReport(updatedReport)
+      showSuccess('Report finalized successfully! It is now locked from editing.')
+    } catch (error) {
+      console.error('Failed to finalize report:', error)
+      showError(error instanceof Error ? error.message : 'Failed to finalize report')
+    } finally {
+      setFinalizing(false)
+    }
+  }
+
+  // Check if report is finalized
+  const isFinalized = report?.status === 'finalized'
+
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center py-5">
@@ -149,15 +178,34 @@ export default function ReportSummary({ isPublic = false }: ReportSummaryProps) 
         <div className="mb-4">
           <div className="d-flex justify-content-between align-items-start">
             <div>
-              <h1 className="h2 fw-bold text-dark">{isPublic ? 'Property Condition Report' : 'Inspection Complete!'}</h1>
+              <h1 className="h2 fw-bold text-dark">
+                {isPublic ? 'Property Condition Report' : isFinalized ? 'Finalized Report' : 'Inspection Complete!'}
+              </h1>
               <p className="text-muted mb-0">{property.name}</p>
             </div>
             <div className="text-end">
-              <div className="small text-muted">Report ID</div>
-              <div className="font-monospace small">{report.id.substring(0, 8)}</div>
+              {isFinalized ? (
+                <span className="badge bg-success fs-6">🔒 Finalized</span>
+              ) : report.status === 'draft' ? (
+                <span className="badge bg-warning text-dark fs-6">📝 Draft</span>
+              ) : (
+                <span className="badge bg-info text-white fs-6">✓ Completed</span>
+              )}
+              <div className="small text-muted mt-1">ID: {report.id.substring(0, 8)}</div>
             </div>
           </div>
         </div>
+
+        {/* Finalized Notice */}
+        {isFinalized && !isPublic && (
+          <div className="alert alert-success mb-4">
+            <h5 className="alert-heading">🔒 Report Finalized</h5>
+            <p className="mb-0">
+              This report was finalized on {report.finalized_at ? formatDate(report.finalized_at) : 'N/A'} and cannot be edited.
+              You can still download the PDF report.
+            </p>
+          </div>
+        )}
 
         {/* Summary Card */}
         <div className="card shadow-sm mb-4">
@@ -402,13 +450,23 @@ export default function ReportSummary({ isPublic = false }: ReportSummaryProps) 
         {/* Action Buttons */}
         <div className="card shadow-sm">
           <div className="card-body">
-            <h5 className="card-title mb-3">📄 Next Steps</h5>
-            
-            <div className="alert alert-info mb-3">
-              <strong>Solo Report Notice:</strong> This is a self-generated report. For joint verification, 
-              both parties must be present during inspection.
-            </div>
-            
+            <h5 className="card-title mb-3">{isFinalized ? '📄 Report Actions' : '📄 Next Steps'}</h5>
+
+            {!isFinalized && (
+              <div className="alert alert-info mb-3">
+                <strong>Solo Report Notice:</strong> This is a self-generated report. For joint verification,
+                both parties must be present during inspection.
+              </div>
+            )}
+
+            {/* Finalize Warning - only show for completed but not finalized reports */}
+            {!isPublic && !isFinalized && report.status === 'completed' && (
+              <div className="alert alert-warning mb-3">
+                <strong>Ready to Finalize?</strong> Once you finalize this report, it will be locked and cannot be edited or deleted.
+                Make sure all inspection items are complete before finalizing.
+              </div>
+            )}
+
             <div className="d-flex flex-wrap gap-2">
               {!isPublic && (
                 <button
@@ -427,7 +485,35 @@ export default function ReportSummary({ isPublic = false }: ReportSummaryProps) 
                   )}
                 </button>
               )}
-              
+
+              {/* Finalize Button - only show for completed (not finalized) reports */}
+              {!isPublic && !isFinalized && report.status === 'completed' && (
+                <button
+                  onClick={handleFinalize}
+                  disabled={finalizing}
+                  className="btn btn-success"
+                >
+                  {finalizing ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                      Finalizing...
+                    </>
+                  ) : (
+                    <>🔒 Finalize Report</>
+                  )}
+                </button>
+              )}
+
+              {/* Edit button - only show for non-finalized reports */}
+              {!isPublic && !isFinalized && (
+                <button
+                  onClick={() => navigate(`/reports/${reportId}/inspect`)}
+                  className="btn btn-outline-warning"
+                >
+                  ✏️ Edit Report
+                </button>
+              )}
+
               {!isPublic && (
                 <>
                   <button
@@ -436,7 +522,7 @@ export default function ReportSummary({ isPublic = false }: ReportSummaryProps) 
                   >
                     Back to Dashboard
                   </button>
-                  
+
                   <button
                     onClick={() => navigate('/reports/new')}
                     className="btn btn-outline-primary"

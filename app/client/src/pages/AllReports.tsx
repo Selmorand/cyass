@@ -69,16 +69,23 @@ export default function AllReports() {
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      draft: { class: 'bg-warning text-dark', text: 'Draft' },
-      completed: { class: 'bg-success text-white', text: 'Completed' },
-      pending: { class: 'bg-secondary text-white', text: 'Pending' }
+      draft: { class: 'bg-warning text-dark', text: 'Draft', icon: '📝' },
+      completed: { class: 'bg-info text-white', text: 'Completed', icon: '✓' },
+      finalized: { class: 'bg-success text-white', text: 'Finalized', icon: '🔒' },
+      pending: { class: 'bg-secondary text-white', text: 'Pending', icon: '⏳' }
     }
     const badge = badges[status as keyof typeof badges] || badges.draft
     return (
       <span className={`badge ${badge.class}`}>
-        {badge.text}
+        {badge.icon} {badge.text}
       </span>
     )
+  }
+
+  // Check if report has incomplete rooms (no inspection items)
+  const hasIncompleteRooms = (report: Report) => {
+    if (!report.rooms || report.rooms.length === 0) return true
+    return report.rooms.some(room => !room.items || room.items.length === 0)
   }
 
   if (loading) {
@@ -153,12 +160,19 @@ export default function AllReports() {
                       📍 {getPropertyName(report.property_id)}
                     </p>
                     
-                    <p className="card-text text-muted small mb-3">
-                      🏠 {report.rooms?.length || 0} rooms • 
-                      📸 {report.rooms?.reduce((total, room) => 
-                        total + (room.items?.reduce((itemTotal, item) => 
+                    <p className="card-text text-muted small mb-2">
+                      🏠 {report.rooms?.length || 0} rooms •
+                      📸 {report.rooms?.reduce((total, room) =>
+                        total + (room.items?.reduce((itemTotal, item) =>
                           itemTotal + (item.photos?.length || 0), 0) || 0), 0) || 0} photos
                     </p>
+
+                    {/* Incomplete draft warning */}
+                    {report.status === 'draft' && hasIncompleteRooms(report) && (
+                      <div className="alert alert-warning py-1 px-2 mb-2 small">
+                        ⚠️ Incomplete - some rooms need inspection
+                      </div>
+                    )}
                     
                     <p className="card-text">
                       <small className="text-muted">
@@ -176,12 +190,19 @@ export default function AllReports() {
                         >
                           Continue
                         </Link>
-                      ) : (
+                      ) : report.status === 'completed' ? (
                         <Link
                           to={`/reports/${report.id}/summary`}
                           className="btn btn-outline-primary btn-sm flex-1"
                         >
-                          View Report
+                          Review & Finalize
+                        </Link>
+                      ) : (
+                        <Link
+                          to={`/reports/${report.id}/summary`}
+                          className="btn btn-outline-success btn-sm flex-1"
+                        >
+                          🔒 View Report
                         </Link>
                       )}
 
@@ -193,13 +214,16 @@ export default function AllReports() {
                         🏠
                       </Link>
 
-                      <button
-                        onClick={() => handleDeleteClick(report)}
-                        className="btn btn-outline-danger btn-sm"
-                        title="Delete report"
-                      >
-                        🗑️
-                      </button>
+                      {/* Only show delete for non-finalized reports */}
+                      {report.status !== 'finalized' && (
+                        <button
+                          onClick={() => handleDeleteClick(report)}
+                          className="btn btn-outline-danger btn-sm"
+                          title="Delete report"
+                        >
+                          🗑️
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
