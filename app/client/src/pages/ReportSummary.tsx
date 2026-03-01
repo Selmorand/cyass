@@ -8,6 +8,7 @@ import { formatDate } from '../utils/formatters'
 import type { Report, Property, ConditionState, RoomType } from '../types'
 import { useNotification } from '../contexts/NotificationContext'
 import { logActivity } from '../services/activity'
+import { thumbnailCache } from '../services/storage'
 
 interface ReportSummaryProps {
   isPublic?: boolean
@@ -409,8 +410,9 @@ export default function ReportSummary({ isPublic = false }: ReportSummaryProps) 
                                   {item.photos.map((photo, idx) => (
                                     <div key={idx} className="position-relative">
                                       <img
-                                        src={photo}
+                                        src={thumbnailCache.get(photo) || photo}
                                         alt={`${category.name} photo ${idx + 1}`}
+                                        loading="lazy"
                                         className="rounded border"
                                         style={{
                                           width: '100px',

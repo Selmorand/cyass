@@ -4,6 +4,10 @@ import { r2StorageService } from './r2-storage'
 // Use R2 if configured, otherwise fallback to Supabase
 const useR2 = r2StorageService.isConfigured()
 
+// Cache for thumbnail data URLs — maps photo URL → tiny data URL
+// Persists for the session, cleared on page reload
+export const thumbnailCache = new Map<string, string>()
+
 export const storageService = {
   /**
    * Upload photo to Cloudflare R2 (or Supabase fallback)
@@ -194,6 +198,86 @@ export const storageService = {
     const targetMaxWidth = maxWidth ?? 1024
     const targetQuality = quality ?? (isMobile ? 0.82 : 0.85)
 
+    // Try memory-efficient createImageBitmap first (decodes at target size, not full resolution)
+    // This reduces peak memory from ~48-192MB (full camera decode) to ~4MB
+    if (typeof createImageBitmap === 'function') {
+      try {
+        return await this.compressWithBitmap(file, targetMaxWidth, targetQuality, isMobile)
+      } catch (error) {
+        console.warn('createImageBitmap failed, falling back to Image approach:', error)
+      }
+    }
+
+    // Fallback for older browsers: uses new Image() which decodes at full resolution
+    return this.compressWithImage(file, targetMaxWidth, targetQuality, isMobile)
+  },
+
+  /**
+   * Memory-efficient compression using createImageBitmap
+   * Decodes the camera image directly at the target size — never allocates
+   * the full-resolution bitmap (e.g. 12MP = 48MB) in memory.
+   */
+  async compressWithBitmap(file: File, targetMaxWidth: number, targetQuality: number, isMobile: boolean): Promise<File> {
+    // Decode and resize in one pass — the browser never allocates the full-resolution bitmap
+    const bitmap = await createImageBitmap(file, {
+      resizeWidth: targetMaxWidth,
+      resizeQuality: 'high' // Ignored on Safari, that's OK
+    })
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) {
+      bitmap.close()
+      console.warn('Canvas context not available, returning original file')
+      return file
+    }
+
+    try {
+      canvas.width = bitmap.width
+      canvas.height = bitmap.height
+      const outputWidth = bitmap.width
+      const outputHeight = bitmap.height
+
+      // Draw already-resized bitmap (no additional memory spike)
+      ctx.drawImage(bitmap, 0, 0)
+
+      // Release bitmap memory immediately
+      bitmap.close()
+
+      // Convert to JPEG blob
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, 'image/jpeg', targetQuality)
+      })
+
+      // Clean up canvas
+      this.cleanupCanvas(canvas)
+
+      if (blob) {
+        console.log('Image compressed (createImageBitmap):', {
+          originalSize: (file.size / 1024).toFixed(2) + 'KB',
+          compressedSize: (blob.size / 1024).toFixed(2) + 'KB',
+          dimensions: `${outputWidth}x${outputHeight}`,
+          isMobile
+        })
+        return new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() })
+      }
+
+      console.warn('Blob creation failed, returning original file')
+      return file
+    } catch (error) {
+      bitmap.close()
+      this.cleanupCanvas(canvas)
+      console.error('Error during bitmap compression:', error)
+      return file
+    }
+  },
+
+  /**
+   * Fallback compression using new Image() for browsers without createImageBitmap
+   * WARNING: Decodes full-resolution image into memory (~48-192MB for modern cameras)
+   */
+  compressWithImage(file: File, targetMaxWidth: number, targetQuality: number, isMobile: boolean): Promise<File> {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
@@ -207,57 +291,43 @@ export const storageService = {
       const img = new Image()
       let objectUrl: string | null = null
 
-      // Error handler
       img.onerror = () => {
         console.error('Failed to load image for compression')
         this.cleanupMemory(canvas, img, objectUrl)
-        resolve(file) // Return original on error
+        resolve(file)
       }
 
-      // Success handler
       img.onload = () => {
         try {
-          // Calculate dimensions while respecting aspect ratio
           const ratio = Math.min(targetMaxWidth / img.width, targetMaxWidth / img.height, 1)
           canvas.width = Math.floor(img.width * ratio)
           canvas.height = Math.floor(img.height * ratio)
 
-          // Draw compressed image
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
 
-          // Convert to blob with quality setting
           canvas.toBlob((blob) => {
             if (blob) {
-              const compressedFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now()
-              })
-
-              console.log('Image compressed successfully:', {
+              console.log('Image compressed (fallback):', {
                 originalSize: (file.size / 1024).toFixed(2) + 'KB',
                 compressedSize: (blob.size / 1024).toFixed(2) + 'KB',
                 dimensions: `${canvas.width}x${canvas.height}`,
                 isMobile
               })
-
-              // Cleanup memory before resolving
               this.cleanupMemory(canvas, img, objectUrl)
-              resolve(compressedFile)
+              resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }))
             } else {
               console.warn('Blob creation failed, returning original file')
               this.cleanupMemory(canvas, img, objectUrl)
               resolve(file)
             }
           }, 'image/jpeg', targetQuality)
-
         } catch (error) {
           console.error('Error during image compression:', error)
           this.cleanupMemory(canvas, img, objectUrl)
-          resolve(file) // Return original on error
+          resolve(file)
         }
       }
 
-      // Create object URL and load image
       try {
         objectUrl = URL.createObjectURL(file)
         img.src = objectUrl
@@ -269,33 +339,73 @@ export const storageService = {
   },
 
   /**
-   * Clean up memory used during image processing
-   * CRITICAL for preventing memory leaks on mobile devices
+   * Clean up canvas memory
    */
-  cleanupMemory(canvas: HTMLCanvasElement, img: HTMLImageElement, objectUrl: string | null) {
+  cleanupCanvas(canvas: HTMLCanvasElement) {
     try {
-      // Clear canvas
       const ctx = canvas.getContext('2d')
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height)
       }
       canvas.width = 0
       canvas.height = 0
+    } catch (error) {
+      console.warn('Error during canvas cleanup:', error)
+    }
+  },
 
-      // Clear image source
-      img.src = ''
-      img.onload = null
-      img.onerror = null
+  /**
+   * Clean up memory used during image processing (fallback path)
+   * CRITICAL for preventing memory leaks on mobile devices
+   */
+  cleanupMemory(canvas: HTMLCanvasElement, img: HTMLImageElement | null, objectUrl: string | null) {
+    try {
+      this.cleanupCanvas(canvas)
 
-      // Revoke object URL to free memory
+      if (img) {
+        img.src = ''
+        img.onload = null
+        img.onerror = null
+      }
+
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl)
       }
-
-      console.log('Memory cleanup completed')
     } catch (error) {
       console.warn('Error during memory cleanup:', error)
     }
+  },
+
+  /**
+   * Generate a tiny thumbnail data URL from a compressed image file.
+   * Uses createImageBitmap to decode at ~80px — result is ~2-5KB.
+   * Used for displaying thumbnails without loading the full 1024px image.
+   */
+  async generateThumbnail(file: File, size: number = 80): Promise<string> {
+    try {
+      if (typeof createImageBitmap === 'function') {
+        const bitmap = await createImageBitmap(file, { resizeWidth: size })
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+
+        if (!ctx) {
+          bitmap.close()
+          return ''
+        }
+
+        canvas.width = bitmap.width
+        canvas.height = bitmap.height
+        ctx.drawImage(bitmap, 0, 0)
+        bitmap.close()
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6)
+        this.cleanupCanvas(canvas)
+        return dataUrl
+      }
+    } catch (error) {
+      console.warn('Thumbnail generation failed:', error)
+    }
+    return ''
   },
 
   /**

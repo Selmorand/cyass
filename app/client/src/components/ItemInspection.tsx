@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { CONDITION_COLORS } from '../types'
 import type { ConditionState } from '../types'
-import { storageService } from '../services/storage'
+import { storageService, thumbnailCache } from '../services/storage'
 import { useNotification } from '../contexts/NotificationContext'
+import { queueUpload, processQueue, getPendingCount, onUploadComplete } from '../services/upload-queue'
 
 interface ItemInspectionProps {
   category: string
@@ -29,11 +30,36 @@ export default function ItemInspection({
 }: ItemInspectionProps) {
   const [showNotes, setShowNotes] = useState(!!value?.notes)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [pendingUploads, setPendingUploads] = useState(0)
   const cameraInputRef = useRef<HTMLInputElement>(null)
-  const { showError, showSuccess } = useNotification()
-  
+  const { showError, showSuccess, showWarning } = useNotification()
+
   // Detect if mobile device
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+
+  // Process upload queue on mount and listen for completions
+  useEffect(() => {
+    getPendingCount().then(setPendingUploads)
+    processQueue()
+
+    const unsubscribe = onUploadComplete((completedItemId, photoUrl) => {
+      if (completedItemId === itemId) {
+        // Replace pending placeholder with real URL in photos
+        const currentPhotos = value?.photos || []
+        const pendingIndex = currentPhotos.findIndex(p => p.startsWith('pending:'))
+        if (pendingIndex >= 0) {
+          const updated = [...currentPhotos]
+          updated[pendingIndex] = photoUrl
+          onChange({ ...value!, photos: updated })
+        } else {
+          onChange({ ...value!, photos: [...currentPhotos, photoUrl] })
+        }
+        getPendingCount().then(setPendingUploads)
+      }
+    })
+
+    return unsubscribe
+  }, [itemId])
   
   const handleConditionChange = (condition: ConditionState) => {
     onChange({
@@ -70,36 +96,46 @@ export default function ItemInspection({
    * NEVER REVERT to base64 encoding - PDF links require Supabase URLs
    */
   const uploadImage = async (file: File): Promise<string> => {
+    console.log('Starting photo upload:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      reportId,
+      itemId
+    })
+
+    // Compress and generate thumbnail first (these work offline)
+    const compressedFile = await storageService.compressImage(file)
+    console.log('Image compressed:', {
+      originalSize: file.size,
+      compressedSize: compressedFile.size
+    })
+
+    const thumbnail = await storageService.generateThumbnail(compressedFile)
+
     try {
-      console.log('Starting photo upload:', {
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-        reportId,
-        itemId
-      })
-      
-      // Compress and upload to Supabase Storage
-      const compressedFile = await storageService.compressImage(file)
-      console.log('Image compressed:', {
-        originalSize: file.size,
-        compressedSize: compressedFile.size
-      })
-      
+      // Try the upload
       const photoUrl = await storageService.uploadPhoto(compressedFile, reportId, itemId)
       console.log('Photo uploaded successfully:', photoUrl)
-      
+
+      if (thumbnail) {
+        thumbnailCache.set(photoUrl, thumbnail)
+      }
+
       return photoUrl
-    } catch (error) {
-      console.error('Detailed photo upload error:', {
-        error,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        reportId,
-        itemId,
-        fileName: file.name
-      })
-      throw error
+    } catch (uploadError) {
+      // Upload failed (likely offline) — queue for retry
+      console.warn('Upload failed, queueing for retry:', uploadError)
+      await queueUpload(compressedFile, reportId, itemId, thumbnail)
+      setPendingUploads(prev => prev + 1)
+      showWarning('Photo saved offline — will upload when connected')
+
+      // Return a pending placeholder so the thumbnail shows immediately
+      const pendingId = `pending:${Date.now()}`
+      if (thumbnail) {
+        thumbnailCache.set(pendingId, thumbnail)
+      }
+      return pendingId
     }
   }
   
@@ -128,7 +164,6 @@ export default function ItemInspection({
       newInput.onchange = async (e: any) => {
         const file = e.target.files?.[0]
         if (!file) {
-          // Clean up even if no file selected
           cleanupInputElement(newInput)
           return
         }
@@ -138,14 +173,15 @@ export default function ItemInspection({
           const photoUrl = await uploadImage(file)
           const currentPhotos = value?.photos || []
 
-          // Clean up BEFORE state update to release memory early
           cleanupInputElement(newInput)
 
           onChange({
             ...value!,
             photos: [...currentPhotos, photoUrl]
           })
-          showSuccess('Photo added successfully')
+          if (!photoUrl.startsWith('pending:')) {
+            showSuccess('Photo added successfully')
+          }
         } catch (error) {
           console.error('Error processing photo:', error)
           showError('Failed to process photo. Please try again.')
@@ -200,8 +236,6 @@ export default function ItemInspection({
     try {
       const photoUrl = await uploadImage(file)
 
-      // Reset input IMMEDIATELY after getting the file, before upload
-      // This releases the file reference from the input element
       if (cameraInputRef.current) {
         cameraInputRef.current.value = ''
       }
@@ -211,14 +245,15 @@ export default function ItemInspection({
         ...value!,
         photos: [...currentPhotos, photoUrl]
       })
-      showSuccess('Photo added successfully')
+      if (!photoUrl.startsWith('pending:')) {
+        showSuccess('Photo added successfully')
+      }
     } catch (error) {
       console.error('Error processing photo:', error)
       showError('Failed to process photo. Please try again.')
     } finally {
       setIsProcessing(false)
 
-      // Ensure input is reset even if there was an error
       if (cameraInputRef.current) {
         cameraInputRef.current.value = ''
       }
@@ -325,8 +360,9 @@ export default function ItemInspection({
               {value.photos.map((photo, idx) => (
                 <div key={idx} className="position-relative group">
                   <img
-                    src={photo}
+                    src={thumbnailCache.get(photo) || photo}
                     alt={`${category} photo ${idx + 1}`}
+                    loading="lazy"
                     className="rounded"
                     style={{
                       width: '80px',
@@ -336,7 +372,7 @@ export default function ItemInspection({
                       cursor: 'pointer'
                     }}
                     onClick={() => {
-                      // Open full size in new tab
+                      // Open full size in new tab (always use original URL)
                       const newWindow = window.open()
                       if (newWindow) {
                         newWindow.document.write(`<img src="${photo}" style="max-width:100%; height:auto;" />`)
@@ -371,6 +407,13 @@ export default function ItemInspection({
                 <span className="visually-hidden">Processing photo...</span>
               </div>
               <small className="ms-2 text-muted">Processing photo...</small>
+            </div>
+          )}
+
+          {pendingUploads > 0 && (
+            <div className="alert alert-info py-2 mt-2 mb-0 d-flex align-items-center gap-2">
+              <div className="spinner-border spinner-border-sm text-info" role="status" />
+              <small>{pendingUploads} photo{pendingUploads > 1 ? 's' : ''} pending upload</small>
             </div>
           )}
         </div>

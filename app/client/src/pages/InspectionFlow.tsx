@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import ItemInspection from '../components/ItemInspection'
 import VideoRecorder from '../components/VideoRecorder'
 import RoomSelector from '../components/RoomSelector'
-import { DEFAULT_INSPECTION_CATEGORIES } from '../types'
+import { DEFAULT_INSPECTION_CATEGORIES, CONDITION_COLORS } from '../types'
 import { getProperty } from '../services/properties'
 import { getReport, reportsService } from '../services/reports'
 import type { Report, Property, ConditionState, RoomType } from '../types'
@@ -41,6 +41,7 @@ export default function InspectionFlow() {
   const [saving, setSaving] = useState(false)
   const [showAddRoom, setShowAddRoom] = useState(false)
   const [completedRooms, setCompletedRooms] = useState<Set<string>>(new Set())
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
   
   // Track rooms state
   const [rooms, setRooms] = useState<Room[]>([])
@@ -64,6 +65,13 @@ export default function InspectionFlow() {
   }, [location.state?.rooms, report])
   const currentRoom = rooms[currentRoomIndex]
   const categories = currentRoom ? (DEFAULT_INSPECTION_CATEGORIES[currentRoom.type] || []) : []
+
+  // Expand first item when entering a new room
+  useEffect(() => {
+    if (categories.length > 0 && expandedItemId === null) {
+      setExpandedItemId(categories[0].id)
+    }
+  }, [currentRoomIndex, categories.length])
   
   useEffect(() => {
     const loadData = async () => {
@@ -151,6 +159,8 @@ export default function InspectionFlow() {
   }, [reportId, navigate, roomsCreatedInDb])
   
   const handleItemChange = (categoryId: string, value: { condition: ConditionState; notes?: string; photos?: string[] }) => {
+    const prevValue = inspectionData[currentRoom.id]?.[categoryId]
+
     setInspectionData(prev => ({
       ...prev,
       [currentRoom.id]: {
@@ -158,6 +168,14 @@ export default function InspectionFlow() {
         [categoryId]: value
       }
     }))
+
+    // Auto-advance to next item when condition is first set (and no notes/photos needed)
+    if (!prevValue?.condition && value.condition === 'Good') {
+      const currentIndex = categories.findIndex(c => c.id === categoryId)
+      if (currentIndex >= 0 && currentIndex < categories.length - 1) {
+        setExpandedItemId(categories[currentIndex + 1].id)
+      }
+    }
   }
 
   /**
@@ -231,11 +249,13 @@ export default function InspectionFlow() {
       for (const categoryId of itemsToSave) {
         const item = roomData[categoryId]
         try {
+          // Filter out pending placeholders — those uploads haven't completed yet
+          const uploadedPhotos = (item.photos || []).filter((p: string) => !p.startsWith('pending:'))
           await reportsService.createInspectionItem(currentRoom.id, {
             category_id: categoryId,
             condition: item.condition,
             notes: item.notes,
-            photos: item.photos || []
+            photos: uploadedPhotos
           })
           successCount++
           console.log(`✅ Saved: ${categoryId} = ${item.condition}`)
@@ -361,6 +381,7 @@ export default function InspectionFlow() {
               onClick={() => {
                 if (validateCurrentRoom()) {
                   setCurrentRoomIndex(index)
+                  setExpandedItemId(null) // Reset accordion for new room
                 }
               }}
               className={`btn btn-sm text-nowrap ${
@@ -386,19 +407,63 @@ export default function InspectionFlow() {
           existingVideoUrl={currentRoom.video_url}
         />
 
-        {/* Inspection items */}
-        <div className="vstack gap-3">
-          {categories.map((category) => (
-            <ItemInspection
-              key={category.id}
-              category={category.name}
-              description={category.description}
-              reportId={reportId}
-              itemId={category.id}
-              value={roomData[category.id]}
-              onChange={(value) => handleItemChange(category.id, value)}
-            />
-          ))}
+        {/* Inspection items — accordion: only the expanded item is mounted */}
+        <div className="vstack gap-2">
+          {categories.map((category) => {
+            const itemData = roomData[category.id]
+            const isExpanded = expandedItemId === category.id
+
+            if (isExpanded) {
+              return (
+                <ItemInspection
+                  key={category.id}
+                  category={category.name}
+                  description={category.description}
+                  reportId={reportId}
+                  itemId={category.id}
+                  value={itemData}
+                  onChange={(value) => handleItemChange(category.id, value)}
+                />
+              )
+            }
+
+            // Collapsed summary row
+            const photoCount = itemData?.photos?.length || 0
+            const condition = itemData?.condition
+            const conditionColor = condition ? CONDITION_COLORS[condition] : undefined
+
+            return (
+              <button
+                key={category.id}
+                onClick={() => setExpandedItemId(category.id)}
+                className="card border-light mb-0 text-start w-100"
+                style={{ background: 'white', cursor: 'pointer' }}
+              >
+                <div className="card-body p-3 d-flex align-items-center justify-content-between">
+                  <div className="d-flex align-items-center gap-2">
+                    <h4 className="fw-medium text-dark mb-0 fs-6">{category.name}</h4>
+                  </div>
+                  <div className="d-flex align-items-center gap-2">
+                    {photoCount > 0 && (
+                      <span className="badge bg-light text-muted">
+                        📷 {photoCount}
+                      </span>
+                    )}
+                    {condition ? (
+                      <span
+                        className="badge text-white"
+                        style={{ backgroundColor: conditionColor }}
+                      >
+                        {condition}
+                      </span>
+                    ) : (
+                      <span className="badge bg-light text-muted">Not set</span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            )
+          })}
         </div>
         
         {/* Navigation buttons */}
