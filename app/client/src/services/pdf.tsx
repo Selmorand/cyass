@@ -11,19 +11,23 @@ type ProcessedPhoto = {
 }
 
 /**
- * Convert image URL to data URL for PDF embedding
- * This eliminates CORS issues with @react-pdf/renderer
+ * Convert image URL to a small data URL sized for PDF embedding.
+ * Resizes to max 240px (PDF displays at 120px height — 2x for sharpness).
+ * Cleans up canvas and image elements to prevent memory buildup.
  */
 async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous' // Enable CORS
+    const img = new (window.Image as typeof HTMLImageElement)()
+    img.crossOrigin = 'anonymous'
 
     img.onload = () => {
+      const canvas = document.createElement('canvas')
       try {
-        const canvas = document.createElement('canvas')
-        canvas.width = img.width
-        canvas.height = img.height
+        // Resize to PDF display size (120px CSS height, 2x for clarity)
+        const maxDim = 240
+        const ratio = Math.min(maxDim / img.width, maxDim / img.height, 1)
+        canvas.width = Math.floor(img.width * ratio)
+        canvas.height = Math.floor(img.height * ratio)
 
         const ctx = canvas.getContext('2d')
         if (!ctx) {
@@ -31,17 +35,31 @@ async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
           return
         }
 
-        ctx.drawImage(img, 0, 0)
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
         resolve(dataUrl)
       } catch (error) {
         console.error('Error converting image to data URL:', error)
         reject(error)
+      } finally {
+        // Clean up canvas memory
+        const ctx = canvas.getContext('2d')
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+        canvas.width = 0
+        canvas.height = 0
+
+        // Clean up image element
+        img.src = ''
+        img.onload = null
+        img.onerror = null
       }
     }
 
     img.onerror = () => {
       console.error('Failed to load image:', imageUrl)
+      img.src = ''
+      img.onload = null
+      img.onerror = null
       reject(new Error(`Failed to load image: ${imageUrl}`))
     }
 
