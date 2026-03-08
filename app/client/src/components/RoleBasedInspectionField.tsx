@@ -36,6 +36,12 @@ export default function RoleBasedInspectionField({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { showError, showSuccess, showWarning } = useNotification()
 
+  // Keep a ref to the latest value/onChange so async callbacks never use stale data
+  const valueRef = useRef(value)
+  const onChangeRef = useRef(onChange)
+  useEffect(() => { valueRef.current = value }, [value])
+  useEffect(() => { onChangeRef.current = onChange }, [onChange])
+
   // Detect if mobile device
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
@@ -46,14 +52,14 @@ export default function RoleBasedInspectionField({
 
     const unsubscribe = onUploadComplete((completedItemId, photoUrl) => {
       if (completedItemId === `${itemId}_${input.id}`) {
-        const currentPhotos = Array.isArray(value) ? value : []
+        const currentPhotos = Array.isArray(valueRef.current) ? valueRef.current : []
         const pendingIndex = currentPhotos.findIndex((p: string) => p.startsWith('pending:'))
         if (pendingIndex >= 0) {
           const updated = [...currentPhotos]
           updated[pendingIndex] = photoUrl
-          onChange(updated)
+          onChangeRef.current(updated)
         } else {
-          onChange([...currentPhotos, photoUrl])
+          onChangeRef.current([...currentPhotos, photoUrl])
         }
         getPendingCount().then(setPendingUploads)
       }
@@ -134,8 +140,8 @@ export default function RoleBasedInspectionField({
         setIsProcessing(true)
         try {
           const photoUrl = await uploadImage(file)
-          const currentPhotos = Array.isArray(value) ? value : []
-          onChange([...currentPhotos, photoUrl])
+          const currentPhotos = Array.isArray(valueRef.current) ? valueRef.current : []
+          onChangeRef.current([...currentPhotos, photoUrl])
           if (!photoUrl.startsWith('pending:')) {
             showSuccess('Photo added')
           }
@@ -161,8 +167,8 @@ export default function RoleBasedInspectionField({
     setIsProcessing(true)
     try {
       const photoUrl = await uploadImage(file)
-      const currentPhotos = Array.isArray(value) ? value : []
-      onChange([...currentPhotos, photoUrl])
+      const currentPhotos = Array.isArray(valueRef.current) ? valueRef.current : []
+      onChangeRef.current([...currentPhotos, photoUrl])
       if (!photoUrl.startsWith('pending:')) {
         showSuccess('Photo added')
       }

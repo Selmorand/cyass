@@ -20,12 +20,12 @@ interface ItemInspectionProps {
 
 const CONDITIONS: ConditionState[] = ['Good', 'Fair', 'Poor', 'Urgent Repair']
 
-export default function ItemInspection({ 
-  category, 
-  description, 
+export default function ItemInspection({
+  category,
+  description,
   reportId,
   itemId,
-  value, 
+  value,
   onChange
 }: ItemInspectionProps) {
   const [showNotes, setShowNotes] = useState(!!value?.notes)
@@ -33,6 +33,12 @@ export default function ItemInspection({
   const [pendingUploads, setPendingUploads] = useState(0)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const { showError, showSuccess, showWarning } = useNotification()
+
+  // Keep a ref to the latest value/onChange so async callbacks never use stale data
+  const valueRef = useRef(value)
+  const onChangeRef = useRef(onChange)
+  useEffect(() => { valueRef.current = value }, [value])
+  useEffect(() => { onChangeRef.current = onChange }, [onChange])
 
   // Detect if mobile device
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
@@ -44,15 +50,16 @@ export default function ItemInspection({
 
     const unsubscribe = onUploadComplete((completedItemId, photoUrl) => {
       if (completedItemId === itemId) {
-        // Replace pending placeholder with real URL in photos
-        const currentPhotos = value?.photos || []
+        const latest = valueRef.current
+        const latestOnChange = onChangeRef.current
+        const currentPhotos = latest?.photos || []
         const pendingIndex = currentPhotos.findIndex(p => p.startsWith('pending:'))
         if (pendingIndex >= 0) {
           const updated = [...currentPhotos]
           updated[pendingIndex] = photoUrl
-          onChange({ ...value!, photos: updated })
+          latestOnChange({ ...latest!, photos: updated })
         } else {
-          onChange({ ...value!, photos: [...currentPhotos, photoUrl] })
+          latestOnChange({ ...latest!, photos: [...currentPhotos, photoUrl] })
         }
         getPendingCount().then(setPendingUploads)
       }
@@ -171,12 +178,14 @@ export default function ItemInspection({
         setIsProcessing(true)
         try {
           const photoUrl = await uploadImage(file)
-          const currentPhotos = value?.photos || []
+          // Read latest value from ref — avoids stale closure after camera returns
+          const latest = valueRef.current
+          const currentPhotos = latest?.photos || []
 
           cleanupInputElement(newInput)
 
-          onChange({
-            ...value!,
+          onChangeRef.current({
+            ...latest!,
             photos: [...currentPhotos, photoUrl]
           })
           if (!photoUrl.startsWith('pending:')) {
@@ -240,9 +249,10 @@ export default function ItemInspection({
         cameraInputRef.current.value = ''
       }
 
-      const currentPhotos = value?.photos || []
-      onChange({
-        ...value!,
+      const latest = valueRef.current
+      const currentPhotos = latest?.photos || []
+      onChangeRef.current({
+        ...latest!,
         photos: [...currentPhotos, photoUrl]
       })
       if (!photoUrl.startsWith('pending:')) {
